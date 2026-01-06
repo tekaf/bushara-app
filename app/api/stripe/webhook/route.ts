@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { doc, setDoc, getDoc } from 'firebase/firestore'
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase/config'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-06-20.acacia',
-})
-
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
 
 export async function POST(request: NextRequest) {
@@ -25,46 +22,36 @@ export async function POST(request: NextRequest) {
   try {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
   } catch (err: any) {
-    console.error('Webhook signature verification failed:', err.message)
+    console.error('Webhook signature verification failed:', err?.message)
     return NextResponse.json(
-      { error: `Webhook Error: ${err.message}` },
+      { error: `Webhook Error: ${err?.message}` },
       { status: 400 }
     )
   }
 
-  // Handle the event
+  // Handle events
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
 
     try {
-      // Create payment record
       const paymentData = {
         userId: session.metadata?.userId || '',
         inviteId: session.metadata?.inviteId || '',
         packageId: session.metadata?.packageId || '',
         amount: (session.amount_total || 0) / 100,
         currency: session.currency || 'sar',
-        provider: 'stripe' as const,
+        provider: 'stripe',
         providerSessionId: session.id,
-        status: 'paid' as const,
-        createdAt: new Date(),
+        status: 'paid',
+        createdAt: serverTimestamp(),
       }
 
-      await setDoc(doc(db, 'payments', session.id), paymentData)
-
-      // Update user's package if needed
-      if (session.metadata?.userId) {
-        // You can add logic here to update user's active package
-      }
+      await setDoc(doc(db, 'payments', session.id), paymentData, { merge: true })
     } catch (error) {
       console.error('Error processing payment:', error)
-      return NextResponse.json(
-        { error: 'Error processing payment' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Error processing payment' }, { status: 500 })
     }
   }
 
   return NextResponse.json({ received: true })
 }
-
