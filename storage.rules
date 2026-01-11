@@ -1,0 +1,25 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Templates - Allow public read and write for admin templates
+    match /templates/{templateId}/{allPaths=**} {
+      // Allow anyone to read templates (public templates)
+      allow read: if true;
+      
+      // Allow write for authenticated users or via admin password (for now, allow write)
+      // In production, you should restrict this to admin users only
+      allow write: if true;
+    }
+    
+    // User uploads - Allow users to manage their own files
+    match /users/{userId}/{allPaths=**} {
+      // Users can read/write their own files
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Default: deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
