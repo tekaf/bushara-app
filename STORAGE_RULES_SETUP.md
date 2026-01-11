@@ -3,44 +3,50 @@
 ## المشكلة
 عند رفع ملفات (صور أو PDF) إلى Firebase Storage، يظهر خطأ:
 ```
-Firebase Storage: User does not have permission to access
+Firebase Storage: User does not have permission to access (storage/unauthorized)
 ```
 
-## الحل
+## الحل - اتبع الخطوات بالترتيب:
 
-### الخطوة 1: نشر قواعد Storage في Firebase Console
-
+### الخطوة 1: افتح Firebase Console
 1. اذهب إلى [Firebase Console](https://console.firebase.google.com/)
-2. اختر مشروعك (bushara-2df7e)
-3. اذهب إلى **Storage** في القائمة الجانبية
-4. انقر على تبويب **Rules**
-5. انسخ المحتوى من ملف `storage.rules` في المشروع
-6. الصق القواعد في Firebase Console
-7. انقر على **Publish** (نشر)
+2. سجل الدخول بحسابك
+3. اختر المشروع: **bushara-2df7e**
 
-### القواعد المطلوبة:
+### الخطوة 2: افتح Storage Rules
+1. في القائمة الجانبية اليسرى، انقر على **Storage**
+2. انقر على تبويب **Rules** (في الأعلى بجانب Data, Usage, Files)
 
-```javascript
+### الخطوة 3: انسخ والصق القواعد
+1. افتح ملف `STORAGE_RULES.txt` في المشروع
+2. انسخ كل المحتوى (Ctrl+A ثم Ctrl+C)
+3. في Firebase Console، احذف القواعد القديمة (إذا كانت موجودة)
+4. الصق القواعد الجديدة (Ctrl+V)
+
+### الخطوة 4: انشر القواعد
+1. انقر على زر **Publish** (نشر) في الأعلى
+2. انتظر حتى تظهر رسالة النجاح
+
+### الخطوة 5: اختبر الرفع
+ارجع إلى الصفحة وجرب رفع ملف مرة أخرى
+
+---
+
+## القواعد المطلوبة (موجودة في STORAGE_RULES.txt):
+
+```
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Templates - Allow public read and write for admin templates
     match /templates/{templateId}/{allPaths=**} {
-      // Allow anyone to read templates (public templates)
       allow read: if true;
-      
-      // Allow write for authenticated users or via admin password (for now, allow write)
-      // In production, you should restrict this to admin users only
       allow write: if true;
     }
     
-    // User uploads - Allow users to manage their own files
     match /users/{userId}/{allPaths=**} {
-      // Users can read/write their own files
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Default: deny all other access
     match /{allPaths=**} {
       allow read, write: if false;
     }
@@ -48,7 +54,9 @@ service firebase.storage {
 }
 ```
 
-### ملاحظة أمنية
-القواعد الحالية تسمح للجميع بالرفع في مجلد `templates/`. هذا مناسب للتطوير، لكن في الإنتاج يجب تقييد الوصول إلى المستخدمين المخولين فقط.
+---
 
-بعد نشر القواعد، جرب رفع الملف مرة أخرى.
+## ملاحظة مهمة ⚠️
+- القواعد الحالية تسمح للجميع بالرفع في مجلد `templates/`
+- هذا مناسب للتطوير فقط
+- في الإنتاج، يجب تقييد الوصول للمستخدمين المخولين فقط
