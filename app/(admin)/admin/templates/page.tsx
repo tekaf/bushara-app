@@ -5,7 +5,7 @@ import { collection, addDoc } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { db, storage } from '@/lib/firebase/config'
 import type { TemplateType } from '@/lib/template-presets/types'
-import { Upload, Save } from 'lucide-react'
+import { Upload, Save, X } from 'lucide-react'
 
 export default function AdminTemplatesPage() {
   const [loading, setLoading] = useState(false)
@@ -15,6 +15,8 @@ export default function AdminTemplatesPage() {
     backgroundFile: null as File | null,
   })
   const [preview, setPreview] = useState<string | null>(null)
+  const [fileType, setFileType] = useState<'image' | 'pdf' | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
 
   // Simple password protection (replace with proper auth later)
   const [password, setPassword] = useState('')
@@ -54,19 +56,78 @@ export default function AdminTemplatesPage() {
     )
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
+  const processFile = (file: File) => {
+    // Check file type
+    if (file.type === 'application/pdf') {
+      setFileType('pdf')
       setFormData({ ...formData, backgroundFile: file })
       const reader = new FileReader()
       reader.onload = (e) => {
         setPreview(e.target?.result as string)
       }
       reader.readAsDataURL(file)
+    } else if (file.type.startsWith('image/')) {
+      setFileType('image')
+      setFormData({ ...formData, backgroundFile: file })
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    } else {
+      alert('الرجاء رفع صورة أو ملف PDF فقط')
+      setFileType(null)
+      setPreview(null)
     }
   }
 
-  const generateThumbnail = async (file: File): Promise<File> => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      processFile(file)
+    }
+  }
+
+  const removeFile = () => {
+    setFormData({ ...formData, backgroundFile: null })
+    setPreview(null)
+    setFileType(null)
+    // Reset file input
+    const fileInput = document.getElementById('background-upload') as HTMLInputElement
+    if (fileInput) {
+      fileInput.value = ''
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const file = e.dataTransfer.files?.[0]
+    if (file) {
+      processFile(file)
+    }
+  }
+
+  const generateThumbnail = async (file: File): Promise<File | null> => {
+    // Only generate thumbnail for images, not PDFs
+    if (file.type === 'application/pdf') {
+      return null
+    }
+    
     // Simple client-side resize for MVP
     return new Promise((resolve) => {
       const img = new Image()
@@ -96,6 +157,8 @@ export default function AdminTemplatesPage() {
         canvas.toBlob((blob) => {
           if (blob) {
             resolve(new File([blob], 'thumb.jpg', { type: 'image/jpeg' }))
+          } else {
+            resolve(null)
           }
         }, 'image/jpeg', 0.8)
       }
@@ -106,44 +169,54 @@ export default function AdminTemplatesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.backgroundFile) {
-      alert('Please upload a background image')
+      alert('الرجاء رفع ملف')
       return
     }
 
     setLoading(true)
     try {
       const templateId = crypto.randomUUID()
+      const isPdf = formData.backgroundFile.type === 'application/pdf'
+      const fileExtension = isPdf ? 'pdf' : formData.backgroundFile.name.split('.').pop() || 'png'
 
-      // Upload background
-      const backgroundRef = ref(storage, `templates/${templateId}/background.png`)
-      await uploadBytes(backgroundRef, formData.backgroundFile)
-      const backgroundUrl = await getDownloadURL(backgroundRef)
+      // Upload file
+      const fileRef = ref(storage, `templates/${templateId}/background.${fileExtension}`)
+      await uploadBytes(fileRef, formData.backgroundFile)
+      const fileUrl = await getDownloadURL(fileRef)
 
-      // Generate and upload thumbnail
-      const thumbFile = await generateThumbnail(formData.backgroundFile)
-      const thumbRef = ref(storage, `templates/${templateId}/thumb.jpg`)
-      await uploadBytes(thumbRef, thumbFile)
-      const thumbUrl = await getDownloadURL(thumbRef)
+      let thumbUrl = fileUrl // Default to file URL for PDFs
+
+      // Generate and upload thumbnail (only for images)
+      if (!isPdf) {
+        const thumbFile = await generateThumbnail(formData.backgroundFile)
+        if (thumbFile) {
+          const thumbRef = ref(storage, `templates/${templateId}/thumb.jpg`)
+          await uploadBytes(thumbRef, thumbFile)
+          thumbUrl = await getDownloadURL(thumbRef)
+        }
+      }
 
       // Create template document
       await addDoc(collection(db, 'templates'), {
         name: formData.name,
         type: formData.type,
         status: 'published',
+        fileType: isPdf ? 'pdf' : 'image',
         assets: {
-          backgroundUrl,
+          backgroundUrl: fileUrl,
           thumbUrl,
         },
         createdAt: new Date(),
         updatedAt: new Date(),
       })
 
-      alert('Template uploaded successfully!')
+      alert('تم رفع التصميم بنجاح!')
       setFormData({ name: '', type: 'A', backgroundFile: null })
       setPreview(null)
+      setFileType(null)
     } catch (error) {
       console.error('Error uploading template:', error)
-      alert('Error uploading template')
+      alert('حدث خطأ أثناء رفع التصميم')
     } finally {
       setLoading(false)
     }
@@ -182,35 +255,91 @@ export default function AdminTemplatesPage() {
             </div>
 
             <div>
-              <label className="block mb-2 font-semibold">Background Image</label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+              <label className="block mb-2 font-semibold">ملف التصميم (صورة أو PDF)</label>
+              <div
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                  isDragging
+                    ? 'border-primary bg-primary/5'
+                    : 'border-gray-300 hover:border-primary/50'
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,application/pdf"
                   onChange={handleFileChange}
                   className="hidden"
                   id="background-upload"
-                  required
                 />
-                <label
-                  htmlFor="background-upload"
-                  className="cursor-pointer flex flex-col items-center gap-4"
-                >
-                  <Upload className="text-primary" size={48} />
-                  <span className="text-muted">
-                    {formData.backgroundFile
-                      ? formData.backgroundFile.name
-                      : 'Click to upload background image'}
-                  </span>
-                </label>
+                {!formData.backgroundFile ? (
+                  <label
+                    htmlFor="background-upload"
+                    className="cursor-pointer flex flex-col items-center gap-4"
+                  >
+                    <Upload className="text-primary" size={48} />
+                    <span className="text-muted">
+                      {isDragging
+                        ? 'أفلت الملف هنا'
+                        : 'اسحب الملف هنا أو انقر للرفع'}
+                    </span>
+                    <span className="text-sm text-gray-400">صورة أو PDF</span>
+                  </label>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-primary font-semibold">
+                        {formData.backgroundFile.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={removeFile}
+                        className="p-1 hover:bg-red-50 rounded-full transition-colors"
+                        title="حذف الملف"
+                      >
+                        <X className="text-red-500" size={20} />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
               {preview && (
-                <div className="mt-4">
-                  <img
-                    src={preview}
-                    alt="Preview"
-                    className="w-full max-w-md mx-auto rounded-lg shadow"
-                  />
+                <div className="mt-4 relative">
+                  {fileType === 'pdf' ? (
+                    <div className="w-full max-w-md mx-auto relative">
+                      <button
+                        type="button"
+                        onClick={removeFile}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-10"
+                        title="حذف الملف"
+                      >
+                        <X size={18} />
+                      </button>
+                      <iframe
+                        src={preview}
+                        className="w-full h-96 rounded-lg shadow border"
+                        title="PDF Preview"
+                      />
+                      <p className="text-center text-muted mt-2">معاينة ملف PDF</p>
+                    </div>
+                  ) : (
+                    <div className="w-full max-w-md mx-auto relative">
+                      <button
+                        type="button"
+                        onClick={removeFile}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-10"
+                        title="حذف الملف"
+                      >
+                        <X size={18} />
+                      </button>
+                      <img
+                        src={preview}
+                        alt="Preview"
+                        className="w-full max-w-md mx-auto rounded-lg shadow"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
