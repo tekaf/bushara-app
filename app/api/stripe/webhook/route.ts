@@ -1,57 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { db } from '@/lib/firebase/config'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2023-10-16',
+})
 
-export async function POST(request: NextRequest) {
-  const body = await request.text()
-  const signature = request.headers.get('stripe-signature')
+// Disable body parsing - we need raw body for signature verification
+export const runtime = 'nodejs'
 
-  if (!signature || !webhookSecret) {
+export async function POST(req: NextRequest) {
+  console.log('WEBHOOK HIT')
+  console.log('has signature?', !!req.headers.get('stripe-signature'))
+
+  const sig = req.headers.get('stripe-signature')
+
+  if (!sig) {
     return NextResponse.json(
-      { error: 'Missing signature or webhook secret' },
+      { error: 'Missing stripe signature' },
       { status: 400 }
     )
   }
+
+  // Get raw body as text (bodyParser is disabled)
+  const body = await req.text()
 
   let event: Stripe.Event
 
   try {
-    event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+    // Verify webhook signature
+    event = stripe.webhooks.constructEvent(
+      body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    )
+    console.log('event type:', event.type)
   } catch (err: any) {
-    console.error('Webhook signature verification failed:', err?.message)
+    console.error('Webhook signature verification failed:', err.message)
     return NextResponse.json(
-      { error: `Webhook Error: ${err?.message}` },
+      { error: 'Webhook Error' },
       { status: 400 }
     )
   }
 
-  // Handle events
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as Stripe.Checkout.Session
-
-    try {
-      const paymentData = {
-        userId: session.metadata?.userId || '',
-        inviteId: session.metadata?.inviteId || '',
-        packageId: session.metadata?.packageId || '',
-        amount: (session.amount_total || 0) / 100,
-        currency: session.currency || 'sar',
-        provider: 'stripe',
-        providerSessionId: session.id,
-        status: 'paid',
-        createdAt: serverTimestamp(),
-      }
-
-      await setDoc(doc(db, 'payments', session.id), paymentData, { merge: true })
-    } catch (error) {
-      console.error('Error processing payment:', error)
-      return NextResponse.json({ error: 'Error processing payment' }, { status: 500 })
+  try {
+    // Handle checkout.session.completed event
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session
+      console.log('✅ Checkout completed:', session.id)
+      // لا تسوي شي ثاني الآن
     }
-  }
 
-  return NextResponse.json({ received: true })
+    // Return 200 for successful webhook processing
+    return NextResponse.json({ received: true }, { status: 200 })
+  } catch (err) {
+    console.error('Webhook handler failed:', err)
+    return NextResponse.json(
+      { error: 'Error processing payment' },
+      { status: 500 }
+    )
+  }
 }

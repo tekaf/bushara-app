@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { Menu, X } from 'lucide-react'
 import { useState } from 'react'
@@ -14,49 +15,56 @@ export default function Navbar() {
       animate={{ y: 0 }}
       className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-primarySoft"
     >
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          <Link href="/" className="text-2xl font-bold text-primary">
-            بشارة
+      <div className="container mx-auto px-4 py-4 relative">
+        {/* Logo - Centered at top */}
+        <div className="flex items-center justify-center">
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/favicon.png"
+              alt="بشارة"
+              width={50}
+              height={50}
+              className="object-contain"
+            />
           </Link>
-
-          {/* Desktop Menu */}
-          <div className="hidden md:flex items-center gap-8">
-            <Link
-              href="/packages"
-              className="text-muted hover:text-primary transition-colors"
-            >
-              الباقات
-            </Link>
-            <Link
-              href="/designs"
-              className="text-muted hover:text-primary transition-colors"
-            >
-              التصاميم
-            </Link>
-            <Link
-              href="/login"
-              className="text-muted hover:text-primary transition-colors"
-            >
-              تسجيل الدخول
-            </Link>
-            <Link
-              href="/register"
-              className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-accent transition-colors"
-            >
-              ابدأ الآن
-            </Link>
-          </div>
-
-          {/* Mobile Menu Button */}
-          <button
-            className="md:hidden"
-            onClick={() => setIsOpen(!isOpen)}
-            aria-label="Menu"
-          >
-            {isOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
         </div>
+
+        {/* Desktop Menu - Right side */}
+        <div className="hidden md:flex items-center gap-8 absolute left-4 top-1/2 -translate-y-1/2">
+          <Link
+            href="/packages"
+            className="text-muted hover:text-primary transition-colors"
+          >
+            الباقات
+          </Link>
+          <Link
+            href="/designs"
+            className="text-muted hover:text-primary transition-colors"
+          >
+            التصاميم
+          </Link>
+          <Link
+            href="/login"
+            className="text-muted hover:text-primary transition-colors"
+          >
+            تسجيل الدخول
+          </Link>
+          <Link
+            href="/register"
+            className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-accent transition-colors"
+          >
+            ابدأ الآن
+          </Link>
+        </div>
+
+        {/* Mobile Menu Button */}
+        <button
+          className="md:hidden absolute left-4 top-1/2 -translate-y-1/2"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-label="Menu"
+        >
+          {isOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
 
         {/* Mobile Menu */}
         {isOpen && (
