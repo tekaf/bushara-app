@@ -56,3 +56,37 @@ export interface CheckInLog {
   reason?: string
 }
 
+export interface Template {
+  id: string
+  name: string
+  type: 'A' | 'B' | 'C'
+  status: 'draft' | 'published'
+  assets: {
+    backgroundUrl: string
+    thumbUrl?: string
+  }
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface Font {
+  id: string
+  family: string
+  weight: number
+  style: 'normal' | 'italic'
+  fileUrl: string
+  format: 'ttf' | 'otf' | 'woff' | 'woff2'
+  createdAt: Date
+}
+
+export interface Render {
+  id: string
+  templateId: string
+  variant: string
+  fields: Record<string, string>
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  outputUrl?: string
+  error?: string
+  createdAt: Date
+}
+

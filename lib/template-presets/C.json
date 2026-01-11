@@ -1,0 +1,105 @@
+{
+  "name": "Type C - Bottom Decoration",
+  "description": "Decoration at bottom, safe area reserved at bottom",
+  "safeArea": {
+    "topPct": 0.05,
+    "bottomPct": 0.24,
+    "leftPct": 0.05,
+    "rightPct": 0.05
+  },
+  "defaultFonts": {
+    "arabicFamily": "Cairo",
+    "englishFamily": "Cormorant Garamond"
+  },
+  "textBlocks": [
+    {
+      "id": "intro_text",
+      "boxPct": { "x": 0.1, "y": 0.12, "w": 0.8, "h": 0.08 },
+      "font": { "familyKey": "arabic", "baseSize": 48, "minSize": 32, "weight": 400 },
+      "color": "#2E2E38",
+      "align": "center",
+      "lineHeight": 1.4,
+      "letterSpacing": 0,
+      "maxLines": 2,
+      "autoFit": true
+    },
+    {
+      "id": "invite_line",
+      "boxPct": { "x": 0.1, "y": 0.2, "w": 0.8, "h": 0.06 },
+      "font": { "familyKey": "arabic", "baseSize": 36, "minSize": 24, "weight": 300 },
+      "color": "#8A8A9E",
+      "align": "center",
+      "lineHeight": 1.5,
+      "letterSpacing": 0,
+      "maxLines": 1,
+      "autoFit": true
+    },
+    {
+      "id": "groom_name",
+      "boxPct": { "x": 0.1, "y": 0.32, "w": 0.8, "h": 0.12 },
+      "font": { "familyKey": "arabic", "baseSize": 72, "minSize": 48, "weight": 700 },
+      "color": "#6B4EFF",
+      "align": "center",
+      "lineHeight": 1.3,
+      "letterSpacing": 0,
+      "maxLines": 2,
+      "autoFit": true
+    },
+    {
+      "id": "bride_name",
+      "boxPct": { "x": 0.1, "y": 0.44, "w": 0.8, "h": 0.12 },
+      "font": { "familyKey": "arabic", "baseSize": 72, "minSize": 48, "weight": 700 },
+      "color": "#8B5CF6",
+      "align": "center",
+      "lineHeight": 1.3,
+      "letterSpacing": 0,
+      "maxLines": 2,
+      "autoFit": true
+    },
+    {
+      "id": "groom_english",
+      "boxPct": { "x": 0.1, "y": 0.57, "w": 0.8, "h": 0.06 },
+      "font": { "familyKey": "english", "baseSize": 32, "minSize": 20, "weight": 400 },
+      "color": "#2E2E38",
+      "align": "center",
+      "lineHeight": 1.4,
+      "letterSpacing": 2,
+      "maxLines": 1,
+      "autoFit": true
+    },
+    {
+      "id": "bride_english",
+      "boxPct": { "x": 0.1, "y": 0.63, "w": 0.8, "h": 0.06 },
+      "font": { "familyKey": "english", "baseSize": 32, "minSize": 20, "weight": 400 },
+      "color": "#2E2E38",
+      "align": "center",
+      "lineHeight": 1.4,
+      "letterSpacing": 2,
+      "maxLines": 1,
+      "autoFit": true
+    },
+    {
+      "id": "date",
+      "boxPct": { "x": 0.1, "y": 0.7, "w": 0.8, "h": 0.08 },
+      "font": { "familyKey": "arabic", "baseSize": 40, "minSize": 28, "weight": 500 },
+      "color": "#2E2E38",
+      "align": "center",
+      "lineHeight": 1.5,
+      "letterSpacing": 0,
+      "maxLines": 2,
+      "autoFit": true
+    },
+    {
+      "id": "venue",
+      "boxPct": { "x": 0.1, "y": 0.78, "w": 0.8, "h": 0.08 },
+      "font": { "familyKey": "arabic", "baseSize": 36, "minSize": 24, "weight": 400 },
+      "color": "#8A8A9E",
+      "align": "center",
+      "lineHeight": 1.5,
+      "letterSpacing": 0,
+      "maxLines": 2,
+      "autoFit": true
+    }
+  ]
+}
+

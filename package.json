@@ -20,7 +20,10 @@
     "@stripe/stripe-js": "^2.4.0",
     "lucide-react": "^0.344.0",
     "date-fns": "^3.3.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "playwright-core": "^1.40.0",
+    "@sparticuz/chromium": "^119.0.0",
+    "sharp": "^0.32.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

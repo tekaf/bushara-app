@@ -37,12 +37,12 @@ export default function Navbar() {
           >
             الباقات
           </Link>
-          <Link
-            href="/designs"
-            className="text-muted hover:text-primary transition-colors"
-          >
-            التصاميم
-          </Link>
+            <Link
+              href="/templates"
+              className="text-muted hover:text-primary transition-colors"
+            >
+              التصاميم
+            </Link>
           <Link
             href="/login"
             className="text-muted hover:text-primary transition-colors"
@@ -82,7 +82,7 @@ export default function Navbar() {
               الباقات
             </Link>
             <Link
-              href="/designs"
+              href="/templates"
               className="block text-muted hover:text-primary transition-colors"
               onClick={() => setIsOpen(false)}
             >
