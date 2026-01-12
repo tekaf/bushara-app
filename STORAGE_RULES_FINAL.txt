@@ -1,6 +1,7 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+
     // 🟢 ملفات المستخدم الخاصة (صور، مرفقات)
     match /uploads/{userId}/{allPaths=**} {
       allow read, write: if request.auth != null
@@ -10,8 +11,7 @@ service firebase.storage {
     // 🎨 التصاميم الجاهزة
     match /templates/{allPaths=**} {
       allow read: if true; // للزوار - آمن
-      // للكتابة: للجميع (للتطوير فقط) ⚠️
-      allow write: if true; // ⚠️ للتطوير فقط - احذف هذا في الإنتاج
+      allow write: if true; // ⚠️ للتطوير فقط
     }
 
     // 🔤 الخطوط (عرض فقط)
