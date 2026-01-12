@@ -192,7 +192,9 @@ export default function AdminTemplatesPage() {
 
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json()
-        throw new Error(errorData.error || 'فشل رفع الملف')
+        const errorMsg = errorData.error || 'فشل رفع الملف'
+        console.error('Upload error:', errorData)
+        throw new Error(errorMsg)
       }
 
       const { url: fileUrl } = await uploadResponse.json()
@@ -239,9 +241,10 @@ export default function AdminTemplatesPage() {
       setFormData({ name: '', type: 'A', backgroundFile: null })
       setPreview(null)
       setFileType(null)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading template:', error)
-      alert('حدث خطأ أثناء رفع التصميم')
+      const errorMsg = error.message || 'حدث خطأ أثناء رفع التصميم'
+      alert(`خطأ: ${errorMsg}\n\nتأكد من نشر قواعد Firebase Storage في Firebase Console.`)
     } finally {
       setLoading(false)
     }

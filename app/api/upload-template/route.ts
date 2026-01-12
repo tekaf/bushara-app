@@ -1,36 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { initializeApp, getApps, cert } from 'firebase-admin/app'
-import { getStorage } from 'firebase-admin/storage'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { storage as clientStorage } from '@/lib/firebase/config'
-
-// Initialize Firebase Admin (server-side, bypasses security rules)
-let adminApp
-try {
-  if (getApps().length === 0) {
-    // Try to use service account credentials if available
-    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
-      ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-      : null
-
-    if (serviceAccount) {
-      adminApp = initializeApp({
-        credential: cert(serviceAccount),
-        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      })
-    } else {
-      // Use default credentials (works on Vercel/Cloud Run)
-      adminApp = initializeApp({
-        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      })
-    }
-  } else {
-    adminApp = getApps()[0]
-  }
-} catch (error) {
-  console.error('Firebase Admin initialization error:', error)
-  // Fallback: will use client SDK
-}
+import { getAdminBucket } from '@/lib/firebase/admin'
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,59 +20,64 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Try Firebase Admin Storage first (bypasses security rules)
-    if (adminApp) {
-      try {
-        const bucket = getStorage(adminApp).bucket()
-        const fileName = isThumbnail 
-          ? `templates/${templateId}/thumb.${fileExtension}`
-          : `templates/${templateId}/background.${fileExtension}`
-        
-        const fileRef = bucket.file(fileName)
-        
-        await fileRef.save(buffer, {
-          metadata: {
-            contentType: file.type,
-          },
-        })
-
-        // Make file publicly accessible
-        await fileRef.makePublic()
-
-        // Get public URL
-        const fileUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`
-
-        return NextResponse.json({ url: fileUrl })
-      } catch (adminError: any) {
-        console.error('Admin SDK upload failed, trying client SDK:', adminError)
-        // Fall through to client SDK
-      }
-    }
-
-    // Fallback: Use client SDK (requires proper security rules)
     const fileName = isThumbnail 
       ? `templates/${templateId}/thumb.${fileExtension}`
       : `templates/${templateId}/background.${fileExtension}`
-    
-    const fileRef = ref(clientStorage, fileName)
-    const blob = new Blob([buffer], { type: file.type })
-    await uploadBytes(fileRef, blob)
-    const fileUrl = await getDownloadURL(fileRef)
 
-    return NextResponse.json({ url: fileUrl })
-  } catch (error: any) {
-    console.error('Error uploading file:', error)
+    // Use Firebase Admin SDK (bypasses all security rules)
+    const bucket = getAdminBucket()
     
-    // Fallback: try client-side upload if admin fails
-    if (error.code === 'app/no-app' || !adminApp) {
+    if (!bucket) {
       return NextResponse.json(
-        { error: 'Server configuration error. Please check Firebase Admin setup.' },
+        { 
+          error: 'Firebase Admin SDK not configured. Please set FIREBASE_SERVICE_ACCOUNT_KEY in .env.local',
+          hint: 'Get service account key from Firebase Console → Project Settings → Service Accounts'
+        },
         { status: 500 }
       )
     }
-    
+
+    try {
+      const fileRef = bucket.file(fileName)
+      
+      // Save file using bucket.save()
+      await fileRef.save(buffer, {
+        metadata: {
+          contentType: file.type || 'application/octet-stream',
+        },
+      })
+
+      // Make file publicly accessible
+      try {
+        await fileRef.makePublic()
+      } catch (publicError: any) {
+        // File might already be public, or we don't have permission - that's okay
+        console.warn('Could not make file public (may already be public):', publicError.message)
+      }
+
+      // Get public URL
+      const fileUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`
+      
+      console.log('✅ File uploaded successfully using Admin SDK:', fileUrl)
+      return NextResponse.json({ url: fileUrl })
+    } catch (adminError: any) {
+      console.error('❌ Admin SDK upload failed:', adminError.message, adminError.code)
+      return NextResponse.json(
+        { 
+          error: `Upload failed: ${adminError.message}`,
+          code: adminError.code,
+          hint: 'Check Firebase Admin SDK configuration and service account permissions'
+        },
+        { status: 500 }
+      )
+    }
+  } catch (error: any) {
+    console.error('❌ Error uploading file:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to upload file' },
+      { 
+        error: error.message || 'Failed to upload file',
+        code: error.code 
+      },
       { status: 500 }
     )
   }
