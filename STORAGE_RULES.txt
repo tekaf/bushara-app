@@ -1,10 +1,9 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Templates - Allow public read and write
+    // Templates folder - Allow public read and write
     match /templates/{templateId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
     
     // User uploads
