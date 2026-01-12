@@ -179,10 +179,23 @@ export default function AdminTemplatesPage() {
       const isPdf = formData.backgroundFile.type === 'application/pdf'
       const fileExtension = isPdf ? 'pdf' : formData.backgroundFile.name.split('.').pop() || 'png'
 
-      // Upload file
-      const fileRef = ref(storage, `templates/${templateId}/background.${fileExtension}`)
-      await uploadBytes(fileRef, formData.backgroundFile)
-      const fileUrl = await getDownloadURL(fileRef)
+      // Upload file using API route (server-side, bypasses client rules)
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', formData.backgroundFile)
+      uploadFormData.append('templateId', templateId)
+      uploadFormData.append('fileExtension', fileExtension)
+
+      const uploadResponse = await fetch('/api/upload-template', {
+        method: 'POST',
+        body: uploadFormData,
+      })
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json()
+        throw new Error(errorData.error || 'فشل رفع الملف')
+      }
+
+      const { url: fileUrl } = await uploadResponse.json()
 
       let thumbUrl = fileUrl // Default to file URL for PDFs
 
@@ -190,9 +203,21 @@ export default function AdminTemplatesPage() {
       if (!isPdf) {
         const thumbFile = await generateThumbnail(formData.backgroundFile)
         if (thumbFile) {
-          const thumbRef = ref(storage, `templates/${templateId}/thumb.jpg`)
-          await uploadBytes(thumbRef, thumbFile)
-          thumbUrl = await getDownloadURL(thumbRef)
+          const thumbFormData = new FormData()
+          thumbFormData.append('file', thumbFile)
+          thumbFormData.append('templateId', templateId)
+          thumbFormData.append('fileExtension', 'jpg')
+          thumbFormData.append('isThumbnail', 'true')
+
+          const thumbResponse = await fetch('/api/upload-template', {
+            method: 'POST',
+            body: thumbFormData,
+          })
+
+          if (thumbResponse.ok) {
+            const { url: thumbUrlResponse } = await thumbResponse.json()
+            thumbUrl = thumbUrlResponse
+          }
         }
       }
 
