@@ -155,10 +155,19 @@ export async function POST(request: NextRequest) {
 
     // Save render record using Admin SDK
     console.log('📤 [RENDER] Saving render record...')
+    
+    // Clean fields: remove undefined values (Firestore doesn't accept undefined)
+    const cleanFields: Record<string, any> = {}
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined && value !== null && value !== '') {
+        cleanFields[key] = value
+      }
+    }
+    
     await adminDb.collection('renders').add({
       templateId,
       variant,
-      fields,
+      fields: cleanFields,
       status: 'completed',
       outputUrl,
       createdAt: new Date(),
