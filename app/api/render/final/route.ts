@@ -17,12 +17,28 @@ let browser: any = null
 async function getBrowser() {
   if (browser) return browser
 
-  chromium.setGraphicsMode(false)
-  browser = await playwright.chromium.launch({
-    args: chromium.args,
-    executablePath: await chromium.executablePath(),
-    headless: chromium.headless,
-  })
+  try {
+    // Try to use chromium (for production/Vercel)
+    chromium.setGraphicsMode(false)
+    browser = await playwright.chromium.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    })
+    console.log('✅ [RENDER/FINAL] Browser launched with Chromium')
+  } catch (chromiumError: any) {
+    console.warn('⚠️ [RENDER/FINAL] Chromium failed, trying system browser:', chromiumError.message)
+    // Fallback to system browser (for local development)
+    try {
+      browser = await playwright.chromium.launch({
+        headless: true,
+      })
+      console.log('✅ [RENDER/FINAL] Browser launched with system Chromium')
+    } catch (systemError: any) {
+      console.error('❌ [RENDER/FINAL] Failed to launch browser:', systemError.message)
+      throw new Error(`Failed to launch browser: ${systemError.message}`)
+    }
+  }
 
   return browser
 }

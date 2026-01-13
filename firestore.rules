@@ -67,6 +67,15 @@ service cloud.firestore {
       // Allow authenticated users to create/update/delete templates
       allow write: if isAuthenticated();
     }
+    
+    // Renders - allow authenticated users to create/read
+    match /renders/{renderId} {
+      // Allow authenticated users to read their renders
+      allow read: if isAuthenticated();
+      
+      // Allow authenticated users to create renders
+      allow create: if isAuthenticated();
+    }
   }
 }
 
