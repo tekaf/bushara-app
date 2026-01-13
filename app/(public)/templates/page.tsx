@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase/config'
 import type { Template } from '@/lib/firebase/types'
 import Navbar from '@/components/ui/Navbar'
@@ -16,18 +16,21 @@ export default function TemplatesPage() {
   useEffect(() => {
     const fetchTemplates = async () => {
       try {
+        // Fetch all templates and filter/sort on client side (avoids needing index)
         const q = query(
           collection(db, 'templates'),
-          where('status', '==', 'published'),
-          orderBy('createdAt', 'desc')
+          where('status', '==', 'published')
         )
         const snapshot = await getDocs(q)
-        const templatesData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-        })) as Template[]
+        const templatesData = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate() || new Date(),
+            updatedAt: doc.data().updatedAt?.toDate() || new Date(),
+          })) as Template[]
+          // Sort by createdAt descending on client side
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
         setTemplates(templatesData)
       } catch (error) {
         console.error('Error fetching templates:', error)
