@@ -234,7 +234,12 @@ export default function AdminTemplatesPage() {
 
       // Create template document in Firestore
       console.log('📤 [CLIENT] Creating Firestore document...')
-      await addDoc(collection(db, 'templates'), {
+      console.log('📤 [CLIENT] User auth state:', {
+        uid: user?.uid,
+        email: user?.email,
+        isAuthenticated: !!user,
+      })
+      console.log('📤 [CLIENT] Document data:', {
         name: formData.name,
         type: formData.type,
         status: 'published',
@@ -243,10 +248,30 @@ export default function AdminTemplatesPage() {
           backgroundUrl: fileUrl,
           thumbUrl,
         },
-        createdAt: new Date(),
-        updatedAt: new Date(),
       })
-      console.log('✅ [CLIENT] Firestore document created')
+      
+      try {
+        const docRef = await addDoc(collection(db, 'templates'), {
+          name: formData.name,
+          type: formData.type,
+          status: 'published',
+          fileType: isPdf ? 'pdf' : 'image',
+          assets: {
+            backgroundUrl: fileUrl,
+            thumbUrl,
+          },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        console.log('✅ [CLIENT] Firestore document created with ID:', docRef.id)
+      } catch (firestoreError: any) {
+        console.error('❌ [CLIENT] Firestore error:', {
+          code: firestoreError.code,
+          message: firestoreError.message,
+          stack: firestoreError.stack,
+        })
+        throw firestoreError
+      }
 
       console.log('✅ [CLIENT] Upload completed successfully')
       alert('✅ تم رفع التصميم بنجاح!')
