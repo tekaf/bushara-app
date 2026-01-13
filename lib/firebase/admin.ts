@@ -1,8 +1,10 @@
 import { initializeApp, getApps, cert, App } from 'firebase-admin/app'
 import { getStorage, Storage } from 'firebase-admin/storage'
+import { getFirestore, Firestore } from 'firebase-admin/firestore'
 
 let adminApp: App | null = null
 let adminStorage: Storage | null = null
+let adminFirestore: Firestore | null = null
 
 export function getAdminApp(): App | null {
   if (adminApp) {
@@ -83,6 +85,25 @@ export function getAdminBucket() {
     return storage.bucket()
   } catch (error) {
     console.error('❌ Failed to get bucket:', error)
+    return null
+  }
+}
+
+export function getAdminFirestore(): Firestore | null {
+  if (adminFirestore) {
+    return adminFirestore
+  }
+
+  const app = getAdminApp()
+  if (!app) {
+    return null
+  }
+
+  try {
+    adminFirestore = getFirestore(app)
+    return adminFirestore
+  } catch (error) {
+    console.error('❌ Failed to get Admin Firestore:', error)
     return null
   }
 }

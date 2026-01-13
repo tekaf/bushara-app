@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { doc, getDoc, collection, addDoc } from 'firebase/firestore'
-import { db } from '@/lib/firebase/config'
-import { getAdminBucket } from '@/lib/firebase/admin'
+import { getAdminBucket, getAdminFirestore } from '@/lib/firebase/admin'
 import type { Template } from '@/lib/firebase/types'
 import { getPreset } from '@/lib/template-presets/loader'
 import { generateHTML } from '@/lib/render/engine'
@@ -55,10 +53,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Load template
+    // Load template using Admin SDK
     console.log('📤 [RENDER] Loading template from Firestore...')
-    const templateDoc = await getDoc(doc(db, 'templates', templateId))
-    if (!templateDoc.exists()) {
+    const adminDb = getAdminFirestore()
+    if (!adminDb) {
+      console.error('❌ [RENDER] Admin Firestore not available')
+      return NextResponse.json(
+        { error: 'Database not configured' },
+        { status: 500 }
+      )
+    }
+
+    const templateDoc = await adminDb.collection('templates').doc(templateId).get()
+    if (!templateDoc.exists) {
       console.error('❌ [RENDER] Template not found:', templateId)
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
@@ -131,9 +138,9 @@ export async function POST(request: NextRequest) {
     const outputUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`
     console.log('✅ [RENDER] File uploaded:', outputUrl)
 
-    // Save render record
+    // Save render record using Admin SDK
     console.log('📤 [RENDER] Saving render record...')
-    await addDoc(collection(db, 'renders'), {
+    await adminDb.collection('renders').add({
       templateId,
       variant,
       fields,
