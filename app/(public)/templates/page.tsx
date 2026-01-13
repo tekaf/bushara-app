@@ -22,13 +22,13 @@ export default function TemplatesPage() {
           where('status', '==', 'published')
         )
         const snapshot = await getDocs(q)
-        const templatesData = snapshot.docs
+        const templatesData = (snapshot.docs
           .map((doc) => ({
             id: doc.id,
             ...doc.data(),
             createdAt: doc.data().createdAt?.toDate() || new Date(),
             updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-          })) as Template[]
+          })) as Template[])
           // Sort by createdAt descending on client side
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
         setTemplates(templatesData)
