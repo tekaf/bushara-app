@@ -105,18 +105,29 @@ export async function POST(request: NextRequest) {
     const browserInstance = await getBrowser()
     console.log('✅ [RENDER] Browser launched')
     
+    // HARD-FIX: Exact viewport 1080x1920, deviceScaleFactor=1, no scaling
     const page = await browserInstance.newPage({
-      viewport: { width: 1080, height: 1920 },
+      viewport: { 
+        width: 1080, 
+        height: 1920,
+        deviceScaleFactor: 1,
+      },
     })
 
     console.log('📤 [RENDER] Setting page content...')
     await page.setContent(html, { waitUntil: 'networkidle' })
-    await page.waitForTimeout(1000) // Wait for fonts to load
+    await page.waitForTimeout(1500) // Wait for fonts to load
 
     console.log('📤 [RENDER] Taking screenshot...')
+    // HARD-FIX: Exact size screenshot, no scaling
     const screenshot = await page.screenshot({
       type: 'png',
-      fullPage: false,
+      clip: {
+        x: 0,
+        y: 0,
+        width: 1080,
+        height: 1920,
+      },
     })
     console.log('✅ [RENDER] Screenshot taken, size:', (screenshot as Buffer).length, 'bytes')
 

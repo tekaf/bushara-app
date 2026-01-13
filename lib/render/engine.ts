@@ -87,8 +87,9 @@ export async function generateHTML(
   fields: RenderFields,
   options: RenderOptions = {}
 ): Promise<string> {
-  const width = options.width || 1080
-  const height = options.height || 1920
+  // HARD-FIX: Exact canvas size 1080x1920, no scaling
+  const width = 1080
+  const height = 1920
 
   // Load fonts from Firestore
   const fonts = await fetchFontsFromFirestore()
@@ -120,17 +121,20 @@ export async function generateHTML(
         text = applyKashida(text)
       }
 
-      // Calculate optimal font size
+      // Get font family
       const fontFamily = getFontFamilyByLanguage(
         block.font.familyKey === 'arabic' ? 'ar' : 'en',
         fonts
       )
-      const fontSize = calculateOptimalFontSize(text, block, width, height, fontFamily)
 
-      const x = block.boxPct.x * width
-      const y = block.boxPct.y * height
-      const w = block.boxPct.w * width
-      const h = block.boxPct.h * height
+      // TEMPORARILY DISABLE AUTOFIT: Use maxFont (baseSize) directly for debugging
+      const fontSize = block.font.baseSize // Use maxFont, no shrinking
+
+      // Calculate exact pixel positions from BoxPct (rounded)
+      const xPx = Math.round(block.boxPct.x * width)
+      const yPx = Math.round(block.boxPct.y * height)
+      const wPx = Math.round(block.boxPct.w * width)
+      const hPx = Math.round(block.boxPct.h * height)
 
       const fontWeight = block.font.weight
       const color = block.color
@@ -144,10 +148,10 @@ export async function generateHTML(
           data-block-id="${block.id}"
           style="
             position: absolute;
-            left: ${x}px;
-            top: ${y}px;
-            width: ${w}px;
-            height: ${h}px;
+            left: ${xPx}px;
+            top: ${yPx}px;
+            width: ${wPx}px;
+            height: ${hPx}px;
             font-family: ${fontFamily};
             font-size: ${fontSize}px;
             font-weight: ${fontWeight};
@@ -158,11 +162,14 @@ export async function generateHTML(
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 10px;
+            padding: 0;
+            margin: 0;
             box-sizing: border-box;
             overflow: hidden;
             word-wrap: break-word;
             white-space: pre-wrap;
+            transform: none;
+            zoom: 1;
           "
         >
           ${text}
@@ -176,7 +183,7 @@ export async function generateHTML(
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=1080, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <style>
     ${fontFaces}
     
@@ -186,7 +193,7 @@ export async function generateHTML(
       box-sizing: border-box;
     }
     
-    body {
+    html, body {
       width: ${width}px;
       height: ${height}px;
       margin: 0;
@@ -194,29 +201,39 @@ export async function generateHTML(
       position: relative;
       overflow: hidden;
       background: #fff;
+      transform: none;
+      zoom: 1;
+    }
+    
+    body {
+      position: relative;
     }
     
     .background {
       position: absolute;
       top: 0;
       left: 0;
-      width: 100%;
-      height: 100%;
+      width: ${width}px;
+      height: ${height}px;
       object-fit: cover;
       z-index: 0;
+      transform: none;
     }
     
     .content {
       position: relative;
       z-index: 1;
-      width: 100%;
-      height: 100%;
+      width: ${width}px;
+      height: ${height}px;
+      transform: none;
     }
     
     .text-block {
       text-rendering: optimizeLegibility;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      transform: none;
+      zoom: 1;
     }
   </style>
 </head>
