@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAdminBucket, getAdminFirestore } from '@/lib/firebase/admin'
 import type { Template } from '@/lib/firebase/types'
 import { getPreset } from '@/lib/template-presets/loader'
-import { generateHTML } from '@/lib/render/engine'
+import { generateHTML, type RenderFields } from '@/lib/render/engine'
 import chromium from '@sparticuz/chromium'
 import playwright from 'playwright-core'
 
@@ -44,13 +44,28 @@ async function getBrowser() {
 export async function POST(request: NextRequest) {
   try {
     console.log('📤 [RENDER] Starting render request...')
-    const { templateId, variant, fields } = await request.json()
+    const { templateId, variant, fields: rawFields } = await request.json()
 
-    console.log('📤 [RENDER] Request data:', { templateId, variant, fields })
+    console.log('📤 [RENDER] Request data:', { templateId, variant, fields: rawFields })
 
-    if (!templateId || !fields) {
+    if (!templateId || !rawFields) {
       console.error('❌ [RENDER] Missing required fields')
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    // Map fields to RenderFields format
+    const fields: RenderFields = {
+      groomNameAr: rawFields.groomNameAr,
+      brideNameAr: rawFields.brideNameAr,
+      groomNameEn: rawFields.groomNameEn,
+      brideNameEn: rawFields.brideNameEn,
+      dateText: rawFields.dateText,
+      date_en: rawFields.date_en || rawFields.dateText,
+      venueText: rawFields.venueText,
+      location_name: rawFields.location_name || rawFields.venueText,
+      verse_or_dua: rawFields.verse_or_dua,
+      intro_text: rawFields.intro_text,
+      invite_line: rawFields.invite_line,
     }
 
     // Load template using Admin SDK
@@ -80,9 +95,9 @@ export async function POST(request: NextRequest) {
     const preset = getPreset(template.type)
     console.log('✅ [RENDER] Preset loaded:', template.type)
 
-    // Generate HTML
-    console.log('📤 [RENDER] Generating HTML...')
-    const html = generateHTML(preset, template.assets.backgroundUrl, fields)
+    // Generate HTML with fonts from Firestore
+    console.log('📤 [RENDER] Generating HTML with fonts...')
+    const html = await generateHTML(preset, template.assets.backgroundUrl, fields)
     console.log('✅ [RENDER] HTML generated')
 
     // Render with Playwright
