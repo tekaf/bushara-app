@@ -148,13 +148,21 @@ export async function POST(request: NextRequest) {
       renderId,
     })
   } catch (error: any) {
-    console.error('❌ [RENDER/FINAL] Error:', {
-      message: error.message,
+    const errorDetails = {
+      message: error.message || 'Unknown error',
       stack: error.stack,
       code: error.code,
-    })
+      name: error.name,
+    }
+    console.error('❌ [RENDER/FINAL] Error:', errorDetails)
+    
+    // Return detailed error in development, simple message in production
+    const isDev = process.env.NODE_ENV === 'development'
     return NextResponse.json(
-      { error: error.message || 'Error rendering image' },
+      { 
+        error: error.message || 'Error rendering image',
+        ...(isDev && { details: errorDetails })
+      },
       { status: 500 }
     )
   }

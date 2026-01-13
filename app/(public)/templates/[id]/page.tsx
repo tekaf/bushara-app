@@ -56,6 +56,7 @@ export default function TemplateDetailPage() {
   const handlePreview = async () => {
     setRendering(true)
     try {
+      console.log('📤 [CLIENT] Sending preview request...', { templateId, fields: formData })
       const response = await fetch('/api/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -65,13 +66,29 @@ export default function TemplateDetailPage() {
           fields: formData,
         }),
       })
+      
+      console.log('📤 [CLIENT] Response status:', response.status)
+      
       const data = await response.json()
-      if (data.url) {
-        setPreviewUrl(data.url)
+      console.log('📤 [CLIENT] Response data:', data)
+      
+      if (!response.ok) {
+        const errorMsg = data.error || `Server error: ${response.status}`
+        console.error('❌ [CLIENT] Preview error:', errorMsg)
+        alert(`خطأ في المعاينة: ${errorMsg}`)
+        return
       }
-    } catch (error) {
-      console.error('Error rendering preview:', error)
-      alert('Error generating preview')
+      
+      if (data.url) {
+        console.log('✅ [CLIENT] Preview URL:', data.url)
+        setPreviewUrl(data.url)
+      } else {
+        console.error('❌ [CLIENT] No URL in response')
+        alert('خطأ: لم يتم إنشاء رابط المعاينة')
+      }
+    } catch (error: any) {
+      console.error('❌ [CLIENT] Error rendering preview:', error)
+      alert(`خطأ في المعاينة: ${error.message || 'حدث خطأ غير متوقع'}`)
     } finally {
       setRendering(false)
     }
@@ -80,6 +97,7 @@ export default function TemplateDetailPage() {
   const handleGenerateFinal = async () => {
     setRendering(true)
     try {
+      console.log('📤 [CLIENT] Sending final render request...', { templateId, fields: formData })
       const response = await fetch('/api/render/final', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -89,13 +107,29 @@ export default function TemplateDetailPage() {
           fields: formData,
         }),
       })
+      
+      console.log('📤 [CLIENT] Response status:', response.status)
+      
       const data = await response.json()
-      if (data.url) {
-        setFinalUrl(data.url)
+      console.log('📤 [CLIENT] Response data:', data)
+      
+      if (!response.ok) {
+        const errorMsg = data.error || `Server error: ${response.status}`
+        console.error('❌ [CLIENT] Final render error:', errorMsg)
+        alert(`خطأ في الإنشاء: ${errorMsg}`)
+        return
       }
-    } catch (error) {
-      console.error('Error rendering final:', error)
-      alert('Error generating final image')
+      
+      if (data.url) {
+        console.log('✅ [CLIENT] Final URL:', data.url)
+        setFinalUrl(data.url)
+      } else {
+        console.error('❌ [CLIENT] No URL in response')
+        alert('خطأ: لم يتم إنشاء رابط الصورة النهائية')
+      }
+    } catch (error: any) {
+      console.error('❌ [CLIENT] Error rendering final:', error)
+      alert(`خطأ في الإنشاء: ${error.message || 'حدث خطأ غير متوقع'}`)
     } finally {
       setRendering(false)
     }
