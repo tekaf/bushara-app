@@ -57,7 +57,11 @@ export default function TemplateDetailPage() {
     setRendering(true)
     try {
       console.log('📤 [CLIENT] Sending preview request...', { templateId, fields: formData })
-      const response = await fetch('/api/render', {
+      // Check if debug mode is enabled (add ?debug=true to URL)
+      const urlParams = new URLSearchParams(window.location.search)
+      const debugMode = urlParams.get('debug') === 'true'
+      
+      const response = await fetch(`/api/render${debugMode ? '?debug=true' : ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -98,7 +102,11 @@ export default function TemplateDetailPage() {
     setRendering(true)
     try {
       console.log('📤 [CLIENT] Sending final render request...', { templateId, fields: formData })
-      const response = await fetch('/api/render/final', {
+      // Check if debug mode is enabled (add ?debug=true to URL)
+      const urlParams = new URLSearchParams(window.location.search)
+      const debugMode = urlParams.get('debug') === 'true'
+      
+      const response = await fetch(`/api/render/final${debugMode ? '?debug=true' : ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

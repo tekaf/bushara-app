@@ -97,8 +97,10 @@ export async function POST(request: NextRequest) {
 
     // Generate HTML with fonts from Firestore
     console.log('📤 [RENDER/FINAL] Generating HTML with fonts...')
-    const html = await generateHTML(preset, template.assets.backgroundUrl, fields)
-    console.log('✅ [RENDER/FINAL] HTML generated')
+    // Enable debug mode if ?debug=true in query string
+    const debugMode = request.nextUrl.searchParams.get('debug') === 'true'
+    const html = await generateHTML(preset, template.assets.backgroundUrl, fields, { debug: debugMode })
+    console.log('✅ [RENDER/FINAL] HTML generated', debugMode ? '(DEBUG MODE)' : '')
 
     // Render with Playwright
     console.log('📤 [RENDER/FINAL] Launching browser...')

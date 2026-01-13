@@ -21,6 +21,7 @@ export interface RenderOptions {
   height?: number
   fontFaces?: string
   fonts?: Array<{ name: string; language: 'ar' | 'en' }>
+  debug?: boolean // Enable debug mode: show borders and labels
 }
 
 /**
@@ -110,14 +111,16 @@ export async function generateHTML(
     verse_or_dua: fields.verse_or_dua || '',
   }
 
+  const debugMode = options.debug || false
+
   // Generate text blocks HTML
   const textBlocksHTML = preset.textBlocks
     .map((block) => {
       let text = fieldMap[block.id] || ''
-      if (!text) return ''
+      if (!text && !debugMode) return '' // Skip empty blocks unless debug mode
 
       // Apply Kashida for short Arabic names
-      if (shouldApplyKashida(block.id)) {
+      if (shouldApplyKashida(block.id) && text) {
         text = applyKashida(text)
       }
 
@@ -141,6 +144,24 @@ export async function generateHTML(
       const textAlign = block.align
       const lineHeight = block.lineHeight
       const direction = block.font.familyKey === 'arabic' ? 'rtl' : 'ltr'
+
+      // Debug mode: add border and label
+      const debugBorder = debugMode ? 'border: 2px solid rgba(255, 0, 0, 0.4);' : ''
+      const debugLabel = debugMode ? `
+        <div style="
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          background: rgba(255, 0, 0, 0.8);
+          color: white;
+          font-size: 10px;
+          font-family: Arial, sans-serif;
+          padding: 2px 4px;
+          border-radius: 2px;
+          z-index: 10;
+          pointer-events: none;
+        ">${block.id}</div>
+      ` : ''
 
       return `
         <div
@@ -170,9 +191,11 @@ export async function generateHTML(
             white-space: pre-wrap;
             transform: none;
             zoom: 1;
+            ${debugBorder}
           "
         >
-          ${text}
+          ${debugLabel}
+          ${text || (debugMode ? `[${block.id}]` : '')}
         </div>
       `
     })
