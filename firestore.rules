@@ -58,6 +58,15 @@ service cloud.firestore {
       // Allow create for authenticated users
       allow create: if isAuthenticated() && request.resource.data.staffUserId == request.auth.uid;
     }
+    
+    // Templates - public read, authenticated write
+    match /templates/{templateId} {
+      // Allow public read (for viewing templates)
+      allow read: if true;
+      
+      // Allow authenticated users to create/update/delete templates
+      allow write: if isAuthenticated();
+    }
   }
 }
 

@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { collection, addDoc } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { db, storage } from '@/lib/firebase/config'
+import { db } from '@/lib/firebase/config'
+import { useAuth } from '@/lib/auth/context'
 import type { TemplateType } from '@/lib/template-presets/types'
 import { Upload, Save, X } from 'lucide-react'
 
 export default function AdminTemplatesPage() {
+  const { user, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
@@ -18,39 +19,30 @@ export default function AdminTemplatesPage() {
   const [fileType, setFileType] = useState<'image' | 'pdf' | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
-  // Simple password protection (replace with proper auth later)
-  const [password, setPassword] = useState('')
-  const [authenticated, setAuthenticated] = useState(false)
-
-  if (!authenticated) {
+  // Require Firebase authentication
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl p-8 shadow-lg max-w-md w-full">
-          <h1 className="text-2xl font-bold mb-4">Admin Access</h1>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter admin password"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg mb-4"
-            onKeyPress={(e) => {
-              if (e.key === 'Enter' && password === 'admin123') {
-                setAuthenticated(true)
-              }
-            }}
-          />
-          <button
-            onClick={() => {
-              if (password === 'admin123') {
-                setAuthenticated(true)
-              } else {
-                alert('Wrong password')
-              }
-            }}
-            className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-accent transition-colors"
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted">جاري التحميل...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl p-8 shadow-lg max-w-md w-full text-center">
+          <h1 className="text-2xl font-bold mb-4">Admin Access Required</h1>
+          <p className="text-muted mb-6">You must be logged in to access this page.</p>
+          <a
+            href="/login"
+            className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-accent transition-colors inline-block"
           >
-            Login
-          </button>
+            Go to Login
+          </a>
         </div>
       </div>
     )
@@ -180,6 +172,13 @@ export default function AdminTemplatesPage() {
       const fileExtension = isPdf ? 'pdf' : formData.backgroundFile.name.split('.').pop() || 'png'
 
       // Upload file using API route (server-side, bypasses client rules)
+      console.log('📤 [CLIENT] Starting upload...', {
+        templateId,
+        fileExtension,
+        fileName: formData.backgroundFile.name,
+        fileSize: formData.backgroundFile.size,
+      })
+
       const uploadFormData = new FormData()
       uploadFormData.append('file', formData.backgroundFile)
       uploadFormData.append('templateId', templateId)
@@ -190,14 +189,24 @@ export default function AdminTemplatesPage() {
         body: uploadFormData,
       })
 
+      console.log('📤 [CLIENT] Response status:', uploadResponse.status)
+      console.log('📤 [CLIENT] Response ok:', uploadResponse.ok)
+
+      const responseData = await uploadResponse.json()
+      console.log('📤 [CLIENT] Response JSON:', responseData)
+
       if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json()
-        const errorMsg = errorData.error || 'فشل رفع الملف'
-        console.error('Upload error:', errorData)
+        const errorMsg = responseData.error || 'فشل رفع الملف'
+        console.error('❌ [CLIENT] Upload error:', responseData)
         throw new Error(errorMsg)
       }
 
-      const { url: fileUrl } = await uploadResponse.json()
+      const { url: fileUrl, downloadUrl, storagePath } = responseData
+      console.log('✅ [CLIENT] Upload successful:', {
+        url: fileUrl,
+        downloadUrl,
+        storagePath,
+      })
 
       let thumbUrl = fileUrl // Default to file URL for PDFs
 
@@ -223,7 +232,8 @@ export default function AdminTemplatesPage() {
         }
       }
 
-      // Create template document
+      // Create template document in Firestore
+      console.log('📤 [CLIENT] Creating Firestore document...')
       await addDoc(collection(db, 'templates'), {
         name: formData.name,
         type: formData.type,
@@ -236,8 +246,10 @@ export default function AdminTemplatesPage() {
         createdAt: new Date(),
         updatedAt: new Date(),
       })
+      console.log('✅ [CLIENT] Firestore document created')
 
-      alert('تم رفع التصميم بنجاح!')
+      console.log('✅ [CLIENT] Upload completed successfully')
+      alert('✅ تم رفع التصميم بنجاح!')
       setFormData({ name: '', type: 'A', backgroundFile: null })
       setPreview(null)
       setFileType(null)
