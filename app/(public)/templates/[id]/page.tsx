@@ -266,6 +266,36 @@ export default function TemplateDetailPage() {
                       placeholder="مثال: Friday 30-1-2026"
                     />
                   </div>
+
+                  <div className="flex gap-4 pt-4">
+                    <button
+                      type="button"
+                      onClick={handlePreview}
+                      disabled={rendering}
+                      className="flex-1 bg-primarySoft text-primary py-3 rounded-lg font-semibold hover:bg-primary/10 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      <Eye size={20} />
+                      معاينة
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGenerateFinal}
+                      disabled={rendering}
+                      className="flex-1 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-accent transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {rendering ? (
+                        <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          جاري...
+                        </>
+                      ) : (
+                        <>
+                          <Download size={20} />
+                          إنشاء نهائي
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </form>
               ) : (
                 /* Type A/C: Full form */
@@ -347,39 +377,38 @@ export default function TemplateDetailPage() {
                       placeholder="مثال: قاعة الأفراح - الرياض"
                     />
                   </div>
+
+                  <div className="flex gap-4 pt-4">
+                    <button
+                      type="button"
+                      onClick={handlePreview}
+                      disabled={rendering}
+                      className="flex-1 bg-primarySoft text-primary py-3 rounded-lg font-semibold hover:bg-primary/10 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      <Eye size={20} />
+                      معاينة
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGenerateFinal}
+                      disabled={rendering}
+                      className="flex-1 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-accent transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {rendering ? (
+                        <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          جاري...
+                        </>
+                      ) : (
+                        <>
+                          <Download size={20} />
+                          إنشاء نهائي
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </form>
               )}
-
-                <div className="flex gap-4 pt-4">
-                  <button
-                    type="button"
-                    onClick={handlePreview}
-                    disabled={rendering}
-                    className="flex-1 bg-primarySoft text-primary py-3 rounded-lg font-semibold hover:bg-primary/10 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    <Eye size={20} />
-                    معاينة
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleGenerateFinal}
-                    disabled={rendering}
-                    className="flex-1 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-accent transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {rendering ? (
-                      <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                        جاري...
-                      </>
-                    ) : (
-                      <>
-                        <Download size={20} />
-                        إنشاء نهائي
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
             </div>
 
             {/* Preview */}
