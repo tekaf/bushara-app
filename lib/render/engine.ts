@@ -97,6 +97,7 @@ export async function generateHTML(
   const fontFaces = options.fontFaces || (await generateFontFaces())
 
   // Map fields to text blocks
+  // Type B uses only: groom_name, bride_name, date
   const fieldMap: Record<string, string> = {
     intro_text: fields.intro_text || 'دعوة زواج',
     invite_line: fields.invite_line || 'نرجو شرف حضوركم',
@@ -104,8 +105,8 @@ export async function generateHTML(
     bride_name: fields.brideNameAr || '',
     groom_english: fields.groomNameEn || '',
     bride_english: fields.brideNameEn || '',
-    date: fields.dateText || fields.date_en || '',
-    date_en: fields.date_en || fields.dateText || '',
+    date: fields.dateText || fields.date_en || fields.date || '',
+    date_en: fields.date_en || fields.dateText || fields.date || '',
     venue: fields.venueText || fields.location_name || '',
     location_name: fields.location_name || fields.venueText || '',
     verse_or_dua: fields.verse_or_dua || '',

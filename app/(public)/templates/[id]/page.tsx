@@ -25,6 +25,7 @@ export default function TemplateDetailPage() {
     groomNameEn: '',
     brideNameEn: '',
     dateText: '',
+    date: '',
     venueText: '',
   })
 
@@ -61,13 +62,23 @@ export default function TemplateDetailPage() {
       const urlParams = new URLSearchParams(window.location.search)
       const debugMode = urlParams.get('debug') === 'true'
       
+      // Type B: only send groom, bride, date
+      const fieldsToSend = template?.type === 'B' 
+        ? {
+            groomNameAr: formData.groomNameAr,
+            brideNameAr: formData.brideNameAr,
+            date: formData.dateText || formData.date,
+            dateText: formData.dateText || formData.date,
+          }
+        : formData
+
       const response = await fetch(`/api/render${debugMode ? '?debug=true' : ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           templateId,
           variant: 'whatsapp_1080x1920',
-          fields: formData,
+          fields: fieldsToSend,
         }),
       })
       
@@ -106,13 +117,23 @@ export default function TemplateDetailPage() {
       const urlParams = new URLSearchParams(window.location.search)
       const debugMode = urlParams.get('debug') === 'true'
       
+      // Type B: only send groom, bride, date
+      const fieldsToSend = template?.type === 'B' 
+        ? {
+            groomNameAr: formData.groomNameAr,
+            brideNameAr: formData.brideNameAr,
+            date: formData.dateText || formData.date,
+            dateText: formData.dateText || formData.date,
+          }
+        : formData
+
       const response = await fetch(`/api/render/final${debugMode ? '?debug=true' : ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           templateId,
           variant: 'whatsapp_1080x1920',
-          fields: formData,
+          fields: fieldsToSend,
         }),
       })
       
@@ -192,84 +213,142 @@ export default function TemplateDetailPage() {
             {/* Form */}
             <div className="bg-white rounded-2xl p-8 shadow-lg">
               <h2 className="text-2xl font-bold mb-6">معلومات الدعوة</h2>
-              <form className="space-y-4">
-                <div>
-                  <label className="block mb-2 font-semibold">اسم العريس (عربي)</label>
-                  <input
-                    type="text"
-                    value={formData.groomNameAr}
-                    onChange={(e) =>
-                      setFormData({ ...formData, groomNameAr: e.target.value })
-                    }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="مثال: سعود"
-                  />
-                </div>
+              
+              {/* Type B: Special layout - only 3 fields */}
+              {template.type === 'B' ? (
+                <form className="space-y-4">
+                  <div className="mb-6 p-4 bg-primarySoft rounded-lg">
+                    <p className="text-sm text-muted">
+                      هذا التصميم خاص بـ: عقد قران / خطوبة / ملكة
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block mb-2 font-semibold">اسم العريس (عربي) *</label>
+                    <input
+                      type="text"
+                      value={formData.groomNameAr}
+                      onChange={(e) =>
+                        setFormData({ ...formData, groomNameAr: e.target.value })
+                      }
+                      required
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      placeholder="مثال: سعد"
+                    />
+                    <p className="text-xs text-muted mt-1">سيتم تطبيق Kashida تلقائياً للأسماء القصيرة</p>
+                  </div>
 
-                <div>
-                  <label className="block mb-2 font-semibold">اسم العروس (عربي)</label>
-                  <input
-                    type="text"
-                    value={formData.brideNameAr}
-                    onChange={(e) =>
-                      setFormData({ ...formData, brideNameAr: e.target.value })
-                    }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="مثال: هاجر"
-                  />
-                </div>
+                  <div>
+                    <label className="block mb-2 font-semibold">اسم العروس (عربي) *</label>
+                    <input
+                      type="text"
+                      value={formData.brideNameAr}
+                      onChange={(e) =>
+                        setFormData({ ...formData, brideNameAr: e.target.value })
+                      }
+                      required
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      placeholder="مثال: ريم"
+                    />
+                    <p className="text-xs text-muted mt-1">سيتم تطبيق Kashida تلقائياً للأسماء القصيرة</p>
+                  </div>
 
-                <div>
-                  <label className="block mb-2 font-semibold">اسم العريس (إنجليزي) - اختياري</label>
-                  <input
-                    type="text"
-                    value={formData.groomNameEn}
-                    onChange={(e) =>
-                      setFormData({ ...formData, groomNameEn: e.target.value })
-                    }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="e.g., Saud"
-                  />
-                </div>
+                  <div>
+                    <label className="block mb-2 font-semibold">التاريخ *</label>
+                    <input
+                      type="text"
+                      value={formData.dateText || formData.date}
+                      onChange={(e) =>
+                        setFormData({ ...formData, dateText: e.target.value, date: e.target.value })
+                      }
+                      required
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      placeholder="مثال: Friday 30-1-2026"
+                    />
+                  </div>
+                </form>
+              ) : (
+                /* Type A/C: Full form */
+                <form className="space-y-4">
+                  <div>
+                    <label className="block mb-2 font-semibold">اسم العريس (عربي)</label>
+                    <input
+                      type="text"
+                      value={formData.groomNameAr}
+                      onChange={(e) =>
+                        setFormData({ ...formData, groomNameAr: e.target.value })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      placeholder="مثال: سعود"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block mb-2 font-semibold">اسم العروس (إنجليزي) - اختياري</label>
-                  <input
-                    type="text"
-                    value={formData.brideNameEn}
-                    onChange={(e) =>
-                      setFormData({ ...formData, brideNameEn: e.target.value })
-                    }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="e.g., Hajar"
-                  />
-                </div>
+                  <div>
+                    <label className="block mb-2 font-semibold">اسم العروس (عربي)</label>
+                    <input
+                      type="text"
+                      value={formData.brideNameAr}
+                      onChange={(e) =>
+                        setFormData({ ...formData, brideNameAr: e.target.value })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      placeholder="مثال: هاجر"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block mb-2 font-semibold">التاريخ</label>
-                  <input
-                    type="text"
-                    value={formData.dateText}
-                    onChange={(e) =>
-                      setFormData({ ...formData, dateText: e.target.value })
-                    }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="مثال: يوم الجمعة 15 مارس 2024"
-                  />
-                </div>
+                  <div>
+                    <label className="block mb-2 font-semibold">اسم العريس (إنجليزي) - اختياري</label>
+                    <input
+                      type="text"
+                      value={formData.groomNameEn}
+                      onChange={(e) =>
+                        setFormData({ ...formData, groomNameEn: e.target.value })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      placeholder="e.g., Saud"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block mb-2 font-semibold">المكان</label>
-                  <input
-                    type="text"
-                    value={formData.venueText}
-                    onChange={(e) =>
-                      setFormData({ ...formData, venueText: e.target.value })
-                    }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="مثال: قاعة الأفراح - الرياض"
-                  />
-                </div>
+                  <div>
+                    <label className="block mb-2 font-semibold">اسم العروس (إنجليزي) - اختياري</label>
+                    <input
+                      type="text"
+                      value={formData.brideNameEn}
+                      onChange={(e) =>
+                        setFormData({ ...formData, brideNameEn: e.target.value })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      placeholder="e.g., Hajar"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block mb-2 font-semibold">التاريخ</label>
+                    <input
+                      type="text"
+                      value={formData.dateText}
+                      onChange={(e) =>
+                        setFormData({ ...formData, dateText: e.target.value })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      placeholder="مثال: يوم الجمعة 15 مارس 2024"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block mb-2 font-semibold">المكان</label>
+                    <input
+                      type="text"
+                      value={formData.venueText}
+                      onChange={(e) =>
+                        setFormData({ ...formData, venueText: e.target.value })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      placeholder="مثال: قاعة الأفراح - الرياض"
+                    />
+                  </div>
+                </form>
+              )}
 
                 <div className="flex gap-4 pt-4">
                   <button
