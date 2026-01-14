@@ -22,6 +22,120 @@ export interface RenderOptions {
   fontFaces?: string
   fonts?: Array<{ name: string; language: 'ar' | 'en' }>
   debug?: boolean // Enable debug mode: show borders and labels
+  showGrid?: boolean // Enable grid overlay for positioning
+  gridColumns?: number // Number of columns (default: 26 for A-Z)
+  gridRows?: number // Number of rows (default: 30)
+}
+
+/**
+ * Generate grid overlay HTML
+ */
+function generateGridOverlay(
+  width: number,
+  height: number,
+  columns: number,
+  rows: number
+): string {
+  const columnWidth = width / columns
+  const rowHeight = height / rows
+
+  // Generate column lines and labels
+  const columnLines: string[] = []
+  const columnLabels: string[] = []
+  for (let i = 0; i <= columns; i++) {
+    const x = i * columnWidth
+    const letter = String.fromCharCode(65 + i) // A=65, B=66, etc.
+    
+    columnLines.push(`
+      <div style="
+        position: absolute;
+        left: ${x}px;
+        top: 0;
+        width: 1px;
+        height: ${height}px;
+        background: rgba(0, 0, 255, 0.3);
+        z-index: 1000;
+        pointer-events: none;
+      "></div>
+    `)
+    
+    if (i < columns) {
+      columnLabels.push(`
+        <div style="
+          position: absolute;
+          left: ${x + columnWidth / 2}px;
+          top: 5px;
+          transform: translateX(-50%);
+          font-family: Arial, sans-serif;
+          font-size: 12px;
+          font-weight: bold;
+          color: rgba(0, 0, 255, 0.8);
+          background: rgba(255, 255, 255, 0.7);
+          padding: 2px 4px;
+          border-radius: 2px;
+          z-index: 1001;
+          pointer-events: none;
+        ">${letter}</div>
+      `)
+    }
+  }
+
+  // Generate row lines and labels
+  const rowLines: string[] = []
+  const rowLabels: string[] = []
+  for (let i = 0; i <= rows; i++) {
+    const y = i * rowHeight
+    
+    rowLines.push(`
+      <div style="
+        position: absolute;
+        left: 0;
+        top: ${y}px;
+        width: ${width}px;
+        height: 1px;
+        background: rgba(0, 0, 255, 0.3);
+        z-index: 1000;
+        pointer-events: none;
+      "></div>
+    `)
+    
+    if (i < rows) {
+      rowLabels.push(`
+        <div style="
+          position: absolute;
+          left: 5px;
+          top: ${y + rowHeight / 2}px;
+          transform: translateY(-50%);
+          font-family: Arial, sans-serif;
+          font-size: 12px;
+          font-weight: bold;
+          color: rgba(0, 0, 255, 0.8);
+          background: rgba(255, 255, 255, 0.7);
+          padding: 2px 4px;
+          border-radius: 2px;
+          z-index: 1001;
+          pointer-events: none;
+        ">${i + 1}</div>
+      `)
+    }
+  }
+
+  return `
+    <div class="grid-overlay" style="
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: ${width}px;
+      height: ${height}px;
+      z-index: 1000;
+      pointer-events: none;
+    ">
+      ${columnLines.join('')}
+      ${rowLines.join('')}
+      ${columnLabels.join('')}
+      ${rowLabels.join('')}
+    </div>
+  `
 }
 
 /**
@@ -113,6 +227,12 @@ export async function generateHTML(
   }
 
   const debugMode = options.debug || false
+  const showGrid = options.showGrid || false
+  const gridColumns = options.gridColumns || 26 // A-Z
+  const gridRows = options.gridRows || 30
+
+  // Generate grid overlay HTML if enabled
+  const gridOverlayHTML = showGrid ? generateGridOverlay(width, height, gridColumns, gridRows) : ''
 
   // Generate text blocks HTML
   const textBlocksHTML = preset.textBlocks
@@ -265,6 +385,7 @@ export async function generateHTML(
   <img src="${backgroundUrl}" alt="Background" class="background" />
   <div class="content">
     ${textBlocksHTML}
+    ${gridOverlayHTML}
   </div>
 </body>
 </html>

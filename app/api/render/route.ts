@@ -99,8 +99,18 @@ export async function POST(request: NextRequest) {
     console.log('📤 [RENDER] Generating HTML with fonts...')
     // Enable debug mode if ?debug=true in query string
     const debugMode = request.nextUrl.searchParams.get('debug') === 'true'
-    const html = await generateHTML(preset, template.assets.backgroundUrl, fields, { debug: debugMode })
-    console.log('✅ [RENDER] HTML generated', debugMode ? '(DEBUG MODE)' : '')
+    // Enable grid overlay if ?grid=true in query string
+    const showGrid = request.nextUrl.searchParams.get('grid') === 'true'
+    const gridColumns = parseInt(request.nextUrl.searchParams.get('gridColumns') || '26')
+    const gridRows = parseInt(request.nextUrl.searchParams.get('gridRows') || '30')
+    
+    const html = await generateHTML(preset, template.assets.backgroundUrl, fields, { 
+      debug: debugMode,
+      showGrid: showGrid,
+      gridColumns: gridColumns,
+      gridRows: gridRows,
+    })
+    console.log('✅ [RENDER] HTML generated', debugMode ? '(DEBUG MODE)' : '', showGrid ? '(GRID MODE)' : '')
 
     // Render with Playwright
     console.log('📤 [RENDER] Launching browser...')
