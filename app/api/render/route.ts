@@ -104,6 +104,8 @@ export async function POST(request: NextRequest) {
     const gridColumns = parseInt(request.nextUrl.searchParams.get('gridColumns') || '26')
     const gridRows = parseInt(request.nextUrl.searchParams.get('gridRows') || '30')
     
+    console.log('📤 [RENDER] Options:', { debugMode, showGrid, gridColumns, gridRows })
+    
     const html = await generateHTML(preset, template.assets.backgroundUrl, fields, { 
       debug: debugMode,
       showGrid: showGrid,

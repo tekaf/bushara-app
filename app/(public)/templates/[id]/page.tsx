@@ -58,9 +58,22 @@ export default function TemplateDetailPage() {
     setRendering(true)
     try {
       console.log('📤 [CLIENT] Sending preview request...', { templateId, fields: formData })
-      // Check if debug mode is enabled (add ?debug=true to URL)
+      // Check if debug mode or grid mode is enabled
       const urlParams = new URLSearchParams(window.location.search)
       const debugMode = urlParams.get('debug') === 'true'
+      const gridMode = urlParams.get('grid') === 'true'
+      
+      // Build query string for API
+      const queryParams = new URLSearchParams()
+      if (debugMode) queryParams.set('debug', 'true')
+      if (gridMode) {
+        queryParams.set('grid', 'true')
+        const gridColumns = urlParams.get('gridColumns') || '26'
+        const gridRows = urlParams.get('gridRows') || '30'
+        queryParams.set('gridColumns', gridColumns)
+        queryParams.set('gridRows', gridRows)
+      }
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : ''
       
       // Type B: only send groom, bride, date
       const fieldsToSend = template?.type === 'B' 

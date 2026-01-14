@@ -53,8 +53,9 @@ function generateGridOverlay(
         top: 0;
         width: 1px;
         height: ${height}px;
-        background: rgba(0, 0, 255, 0.3);
-        z-index: 1000;
+        background: rgba(0, 0, 255, 0.7);
+        box-shadow: 0 0 1px rgba(0, 0, 255, 0.5);
+        z-index: 9999;
         pointer-events: none;
       "></div>
     `)
@@ -93,8 +94,9 @@ function generateGridOverlay(
         top: ${y}px;
         width: ${width}px;
         height: 1px;
-        background: rgba(0, 0, 255, 0.3);
-        z-index: 1000;
+        background: rgba(0, 0, 255, 0.7);
+        box-shadow: 0 0 1px rgba(0, 0, 255, 0.5);
+        z-index: 9999;
         pointer-events: none;
       "></div>
     `)
@@ -127,8 +129,9 @@ function generateGridOverlay(
       left: 0;
       width: ${width}px;
       height: ${height}px;
-      z-index: 1000;
+      z-index: 9999;
       pointer-events: none;
+      overflow: visible;
     ">
       ${columnLines.join('')}
       ${rowLines.join('')}
@@ -370,6 +373,7 @@ export async function generateHTML(
       width: ${width}px;
       height: ${height}px;
       transform: none;
+      overflow: visible;
     }
     
     .text-block {
@@ -378,6 +382,18 @@ export async function generateHTML(
       -moz-osx-font-smoothing: grayscale;
       transform: none;
       zoom: 1;
+      z-index: 1;
+    }
+    
+    .grid-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 9999;
+      pointer-events: none;
+      overflow: visible;
     }
   </style>
 </head>
