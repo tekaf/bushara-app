@@ -111,6 +111,7 @@ export async function POST(request: NextRequest) {
       showGrid: showGrid,
       gridColumns: gridColumns,
       gridRows: gridRows,
+      layoutB: template.layoutB, // Pass saved layout if exists
     })
     console.log('✅ [RENDER] HTML generated', debugMode ? '(DEBUG MODE)' : '', showGrid ? '(GRID MODE)' : '')
 

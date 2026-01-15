@@ -65,6 +65,11 @@ export interface Template {
     backgroundUrl: string
     thumbUrl?: string
   }
+  layoutB?: {
+    groom: { xPx: number; yPx: number; fontSize: number; xPct?: number; yPct?: number }
+    bride: { xPx: number; yPx: number; fontSize: number; xPct?: number; yPct?: number }
+    date: { xPx: number; yPx: number; fontSize: number; xPct?: number; yPct?: number }
+  }
   createdAt: Date
   updatedAt: Date
 }

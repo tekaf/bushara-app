@@ -264,6 +264,15 @@ export default function AdminTemplatesPage() {
           updatedAt: new Date(),
         })
         console.log('✅ [CLIENT] Firestore document created with ID:', docRef.id)
+        
+        // If Type B, offer to edit positions
+        if (formData.type === 'B') {
+          const editPositions = confirm('✅ تم رفع التصميم بنجاح!\n\nهل تريد تعديل مواضع العناصر الآن؟')
+          if (editPositions) {
+            window.location.href = `/admin/templates/${docRef.id}/position-editor`
+            return
+          }
+        }
       } catch (firestoreError: any) {
         console.error('❌ [CLIENT] Firestore error:', {
           code: firestoreError.code,

@@ -25,6 +25,11 @@ export interface RenderOptions {
   showGrid?: boolean // Enable grid overlay for positioning
   gridColumns?: number // Number of columns (default: 26 for A-Z)
   gridRows?: number // Number of rows (default: 30)
+  layoutB?: {
+    groom: { xPx: number; yPx: number; fontSize: number; xPct?: number; yPct?: number }
+    bride: { xPx: number; yPx: number; fontSize: number; xPct?: number; yPct?: number }
+    date: { xPx: number; yPx: number; fontSize: number; xPct?: number; yPct?: number }
+  }
 }
 
 /**
@@ -254,14 +259,33 @@ export async function generateHTML(
         fonts
       )
 
-      // TEMPORARILY DISABLE AUTOFIT: Use maxFont (baseSize) directly for debugging
-      const fontSize = block.font.baseSize // Use maxFont, no shrinking
+      // For Type B, use saved layout if available
+      let xPx: number
+      let yPx: number
+      let fontSize: number
+      let wPx: number
+      let hPx: number
 
-      // Calculate exact pixel positions from BoxPct (rounded)
-      const xPx = Math.round(block.boxPct.x * width)
-      const yPx = Math.round(block.boxPct.y * height)
-      const wPx = Math.round(block.boxPct.w * width)
-      const hPx = Math.round(block.boxPct.h * height)
+      if (options.layoutB && (block.id === 'groom_name' || block.id === 'bride_name' || block.id === 'date')) {
+        // Use saved layout positions
+        const savedLayout = block.id === 'groom_name' ? options.layoutB.groom :
+                           block.id === 'bride_name' ? options.layoutB.bride :
+                           options.layoutB.date
+        
+        xPx = savedLayout.xPx
+        yPx = savedLayout.yPx
+        fontSize = savedLayout.fontSize
+        // Keep width/height from preset for now (or make them configurable later)
+        wPx = Math.round(block.boxPct.w * width)
+        hPx = Math.round(block.boxPct.h * height)
+      } else {
+        // Use preset positions
+        fontSize = block.font.baseSize
+        xPx = Math.round(block.boxPct.x * width)
+        yPx = Math.round(block.boxPct.y * height)
+        wPx = Math.round(block.boxPct.w * width)
+        hPx = Math.round(block.boxPct.h * height)
+      }
 
       const fontWeight = block.font.weight
       const color = block.color
