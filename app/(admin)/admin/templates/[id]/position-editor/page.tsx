@@ -10,6 +10,8 @@ import { Save, ArrowLeft, Move } from 'lucide-react'
 
 const CANVAS_WIDTH = 1080
 const CANVAS_HEIGHT = 1920
+const DEFAULT_GRID_COLS = 26 // A-Z
+const DEFAULT_GRID_ROWS = 30
 
 interface ElementPosition {
   xPx: number
@@ -32,12 +34,17 @@ export default function PositionEditorPage() {
   const templateId = params.id as string
 
   const [template, setTemplate] = useState<Template | null>(null)
+  const [rawTemplateType, setRawTemplateType] = useState<string | null>(null)
+  const [templateExists, setTemplateExists] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [scale, setScale] = useState(1)
   const canvasRef = useRef<HTMLDivElement>(null)
-  const [dragging, setDragging] = useState<string | null>(null)
+  const [dragging, setDragging] = useState<keyof LayoutB | null>(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [showGrid, setShowGrid] = useState(true)
+  const [gridCols, setGridCols] = useState(DEFAULT_GRID_COLS)
+  const [gridRows, setGridRows] = useState(DEFAULT_GRID_ROWS)
 
   // Initial positions from preset or saved layout
   const [layout, setLayout] = useState<LayoutB>({
@@ -56,10 +63,15 @@ export default function PositionEditorPage() {
         const docSnap = await getDoc(docRef)
         if (docSnap.exists()) {
           const data = docSnap.data()
+          const normalizedType = String(data.type || '').toUpperCase()
+          setRawTemplateType(data.type ?? null)
+          setTemplateExists(true)
           const templateData: Template = {
             id: docSnap.id,
             name: data.name || '',
-            type: data.type || 'A',
+            type: (normalizedType === 'A' || normalizedType === 'B' || normalizedType === 'C'
+              ? (normalizedType as 'A' | 'B' | 'C')
+              : 'A'),
             status: data.status || 'draft',
             assets: data.assets || { backgroundUrl: '' },
             layoutB: data.layoutB,
@@ -96,9 +108,11 @@ export default function PositionEditorPage() {
           }
         } else {
           console.error('Template not found')
+          setTemplateExists(false)
         }
       } catch (error) {
         console.error('Error loading template:', error)
+        setTemplateExists(false)
       } finally {
         setLoading(false)
       }
@@ -229,6 +243,103 @@ export default function PositionEditorPage() {
     }
   }
 
+  const renderGridOverlay = () => {
+    if (!showGrid) return null
+
+    const cols = Math.max(1, Math.min(52, gridCols))
+    const rows = Math.max(1, Math.min(60, gridRows))
+
+    const colLetters = Array.from({ length: cols }, (_, i) => {
+      // A-Z then AA-...
+      const a = 'A'.charCodeAt(0)
+      if (i < 26) return String.fromCharCode(a + i)
+      const first = Math.floor(i / 26) - 1
+      const second = i % 26
+      return `${String.fromCharCode(a + first)}${String.fromCharCode(a + second)}`
+    })
+
+    return (
+      <div className="absolute inset-0 z-40 pointer-events-none">
+        {/* Vertical lines + column labels */}
+        {Array.from({ length: cols + 1 }, (_, i) => {
+          const leftPct = (i / cols) * 100
+          return (
+            <div key={`v-${i}`}>
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${leftPct}%`,
+                  top: 0,
+                  width: '1px',
+                  height: '100%',
+                  background: 'rgba(0, 120, 255, 0.28)',
+                }}
+              />
+              {i < cols && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${(i / cols) * 100}%`,
+                    top: 0,
+                    transform: 'translateX(-50%)',
+                    padding: '2px 4px',
+                    fontSize: 12,
+                    fontFamily: 'Arial, sans-serif',
+                    fontWeight: 700,
+                    color: 'rgba(0, 80, 200, 0.85)',
+                    background: 'rgba(255, 255, 255, 0.55)',
+                    borderRadius: 4,
+                  }}
+                >
+                  {colLetters[i]}
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {/* Horizontal lines + row labels */}
+        {Array.from({ length: rows + 1 }, (_, i) => {
+          const topPct = (i / rows) * 100
+          return (
+            <div key={`h-${i}`}>
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: `${topPct}%`,
+                  width: '100%',
+                  height: '1px',
+                  background: 'rgba(0, 120, 255, 0.28)',
+                }}
+              />
+              {i < rows && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: `${(i / rows) * 100}%`,
+                    transform: 'translateY(-50%)',
+                    padding: '2px 4px',
+                    fontSize: 12,
+                    fontFamily: 'Arial, sans-serif',
+                    fontWeight: 700,
+                    color: 'rgba(0, 80, 200, 0.85)',
+                    background: 'rgba(255, 255, 255, 0.55)',
+                    borderRadius: 4,
+                    marginLeft: 4,
+                  }}
+                >
+                  {i + 1}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   // Auth check
   if (authLoading || loading) {
     return (
@@ -263,7 +374,51 @@ export default function PositionEditorPage() {
       <div className="min-h-screen bg-bg flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl p-8 shadow-lg max-w-md w-full text-center">
           <h1 className="text-2xl font-bold mb-4">Template Not Found</h1>
-          <p className="text-muted mb-6">This template is not Type B or does not exist.</p>
+          {templateExists === false ? (
+            <p className="text-muted mb-6">
+              لم يتم العثور على هذا القالب في Firestore.
+              <br />
+              <span className="font-mono text-xs">id: {templateId}</span>
+            </p>
+          ) : (
+            <p className="text-muted mb-6">
+              هذا المحرر مخصص لقوالب Type B فقط.
+              <br />
+              النوع الحالي: <span className="font-semibold">{template?.type ?? 'غير معروف'}</span>
+              {rawTemplateType !== null && (
+                <>
+                  <br />
+                  <span className="text-xs">raw type: <span className="font-mono">{String(rawTemplateType)}</span></span>
+                </>
+              )}
+              <br />
+              <span className="font-mono text-xs">id: {templateId}</span>
+            </p>
+          )}
+
+          {templateExists !== false && template && template.type !== 'B' && (
+            <button
+              onClick={async () => {
+                const ok = confirm('هل تريد تغيير نوع القالب إلى Type B؟')
+                if (!ok) return
+                try {
+                  await updateDoc(doc(db, 'templates', templateId), {
+                    type: 'B',
+                    updatedAt: new Date(),
+                  })
+                  setTemplate({ ...template, type: 'B' })
+                  alert('تم تحويل القالب إلى Type B. سيتم فتح المحرر الآن.')
+                } catch (e) {
+                  console.error('Failed to update template type:', e)
+                  alert('فشل تحويل نوع القالب. تحقق من الصلاحيات.')
+                }
+              }}
+              className="w-full mb-3 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-accent transition-colors"
+            >
+              تحويل إلى Type B
+            </button>
+          )}
+
           <button
             onClick={() => router.back()}
             className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-accent transition-colors"
@@ -322,6 +477,7 @@ export default function PositionEditorPage() {
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
             >
+              {renderGridOverlay()}
               {/* Groom Name */}
               <div
                 className={`absolute cursor-grab active:cursor-grabbing ${dragging === 'groom' ? 'z-50' : 'z-10'}`}
@@ -401,6 +557,48 @@ export default function PositionEditorPage() {
           {/* Controls Panel */}
           <div className="w-96 bg-white rounded-2xl p-6 shadow-sm">
             <h2 className="text-xl font-bold mb-6">Controls</h2>
+
+            {/* Grid Controls (Editor only) */}
+            <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold">Grid overlay (للتحديد فقط)</h3>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={showGrid}
+                    onChange={(e) => setShowGrid(e.target.checked)}
+                  />
+                  إظهار
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm text-muted">Columns</label>
+                  <input
+                    type="number"
+                    value={gridCols}
+                    min={1}
+                    max={52}
+                    onChange={(e) => setGridCols(parseInt(e.target.value) || DEFAULT_GRID_COLS)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-muted">Rows</label>
+                  <input
+                    type="number"
+                    value={gridRows}
+                    min={1}
+                    max={60}
+                    onChange={(e) => setGridRows(parseInt(e.target.value) || DEFAULT_GRID_ROWS)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted mt-2">
+                هذه الشبكة تظهر في المحرر فقط ولن تظهر في الرندر النهائي.
+              </p>
+            </div>
 
             {/* Groom Controls */}
             <div className="mb-6 p-4 border border-red-200 rounded-lg bg-red-50">
