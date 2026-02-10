@@ -14,7 +14,7 @@
   "textBlocks": [
     {
       "id": "groom_name",
-      "boxPct": { "x": 0.55, "y": 0.40, "w": 0.35, "h": 0.12 },
+      "boxPct": { "x": 0.6722, "y": 0.2807, "w": 0.35, "h": 0.12 },
       "font": { "familyKey": "arabic", "baseSize": 54, "minSize": 34, "weight": 400 },
       "color": "#6B6B6B",
       "align": "center",
@@ -25,7 +25,7 @@
     },
     {
       "id": "bride_name",
-      "boxPct": { "x": 0.10, "y": 0.40, "w": 0.35, "h": 0.12 },
+      "boxPct": { "x": 0.1167, "y": 0.2797, "w": 0.35, "h": 0.12 },
       "font": { "familyKey": "arabic", "baseSize": 54, "minSize": 34, "weight": 400 },
       "color": "#6B6B6B",
       "align": "center",
@@ -36,7 +36,7 @@
     },
     {
       "id": "date",
-      "boxPct": { "x": 0.25, "y": 0.55, "w": 0.50, "h": 0.08 },
+      "boxPct": { "x": 0.4269, "y": 0.6776, "w": 0.50, "h": 0.08 },
       "font": { "familyKey": "english", "baseSize": 24, "minSize": 16, "weight": 400 },
       "color": "#6B6B6B",
       "align": "center",

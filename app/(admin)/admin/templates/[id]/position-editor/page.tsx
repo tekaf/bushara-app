@@ -51,10 +51,11 @@ export default function PositionEditorPage() {
   const [gridRows, setGridRows] = useState(DEFAULT_GRID_ROWS)
 
   // Initial positions from preset or saved layout
+  // Default positions based on user's preferred layout
   const [layout, setLayout] = useState<LayoutB>({
-    groom: { xPx: 594, yPx: 768, fontSize: 54, xPct: 0.55, yPct: 0.40 },
-    bride: { xPx: 108, yPx: 768, fontSize: 54, xPct: 0.10, yPct: 0.40 },
-    date: { xPx: 270, yPx: 1056, fontSize: 24, xPct: 0.25, yPct: 0.55 },
+    groom: { xPx: 726, yPx: 539, fontSize: 54, xPct: 0.6722, yPct: 0.2807 },
+    bride: { xPx: 126, yPx: 537, fontSize: 54, xPct: 0.1167, yPct: 0.2797 },
+    date: { xPx: 461, yPx: 1301, fontSize: 24, xPct: 0.4269, yPct: 0.6776 },
   })
 
   // Load template
