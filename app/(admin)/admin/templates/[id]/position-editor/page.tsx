@@ -31,7 +31,11 @@ export default function PositionEditorPage() {
   const params = useParams()
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
-  const templateId = params.id as string
+  // Decode and validate templateId
+  const rawId = params.id as string
+  const templateId = rawId && !rawId.includes('[') && !rawId.includes('template-id') 
+    ? decodeURIComponent(rawId) 
+    : null
 
   const [template, setTemplate] = useState<Template | null>(null)
   const [rawTemplateType, setRawTemplateType] = useState<string | null>(null)
@@ -55,9 +59,16 @@ export default function PositionEditorPage() {
 
   // Load template
   useEffect(() => {
-    if (!templateId || authLoading) return
+    if (!templateId || authLoading) {
+      if (!templateId && !authLoading) {
+        setTemplateExists(false)
+        setLoading(false)
+      }
+      return
+    }
 
     async function loadTemplate() {
+      if (!templateId) return
       try {
         const docRef = doc(db, 'templates', templateId)
         const docSnap = await getDoc(docRef)
@@ -201,7 +212,7 @@ export default function PositionEditorPage() {
 
   // Save layout to Firestore
   const handleSave = async () => {
-    if (!template || !user) return
+    if (!template || !user || !templateId) return
 
     setSaving(true)
     try {
@@ -396,11 +407,11 @@ export default function PositionEditorPage() {
             </p>
           )}
 
-          {templateExists !== false && template && template.type !== 'B' && (
+          {templateExists !== false && template && template.type !== 'B' && templateId && (
             <button
               onClick={async () => {
                 const ok = confirm('هل تريد تغيير نوع القالب إلى Type B؟')
-                if (!ok) return
+                if (!ok || !templateId) return
                 try {
                   await updateDoc(doc(db, 'templates', templateId), {
                     type: 'B',
