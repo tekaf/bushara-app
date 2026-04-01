@@ -12,6 +12,64 @@ export interface FontData {
   base64?: string
 }
 
+function normalizeFontFormat(input?: string, fileUrl?: string): 'truetype' | 'opentype' | 'woff' | 'woff2' {
+  const raw = (input || '').toLowerCase().trim()
+  if (raw === 'ttf' || raw === 'truetype') return 'truetype'
+  if (raw === 'otf' || raw === 'opentype') return 'opentype'
+  if (raw === 'woff') return 'woff'
+  if (raw === 'woff2') return 'woff2'
+
+  const url = (fileUrl || '').toLowerCase()
+  if (url.includes('.otf')) return 'opentype'
+  if (url.includes('.woff2')) return 'woff2'
+  if (url.includes('.woff')) return 'woff'
+  return 'truetype'
+}
+
+function inferWeight(rawWeight: unknown, docId: string, fileUrl: string): number {
+  const parsed = Number(rawWeight)
+  if (Number.isFinite(parsed) && parsed > 0) return parsed
+
+  const hint = `${docId} ${fileUrl}`.toLowerCase()
+  if (hint.includes('bold')) return 700
+  if (hint.includes('medium')) return 500
+  if (hint.includes('light')) return 300
+  return 400
+}
+
+function inferStyle(rawStyle: unknown, docId: string, fileUrl: string): string {
+  if (typeof rawStyle === 'string' && rawStyle.trim()) return rawStyle.trim().toLowerCase()
+  const hint = `${docId} ${fileUrl}`.toLowerCase()
+  return hint.includes('italic') ? 'italic' : 'normal'
+}
+
+function stripVariantFromName(name: string): string {
+  return name
+    .replace(/[-_ ]?(regular|bolditalic|bold|italic|medium|light)$/i, '')
+    .trim()
+}
+
+function resolveFontNameAndUrl(data: Record<string, any>, docId: string): { name: string; fileUrl: string } {
+  const directUrl = String(data.fileUrl || data.url || '').trim()
+  if (directUrl) {
+    const directName = String(data.name || '').trim() || stripVariantFromName(docId)
+    return { name: directName, fileUrl: directUrl }
+  }
+
+  // Compatibility: some docs were saved with URL under a dynamic key (e.g. "Amiri": "https://...")
+  for (const [key, value] of Object.entries(data)) {
+    if (typeof value !== 'string') continue
+    const trimmed = value.trim()
+    if (!trimmed.startsWith('http')) continue
+    if (!trimmed.includes('storage.googleapis.com') && !trimmed.includes('firebasestorage')) continue
+    const inferredName = String(data.name || '').trim() || stripVariantFromName(key) || stripVariantFromName(docId)
+    return { name: inferredName, fileUrl: trimmed }
+  }
+
+  const fallbackName = String(data.name || '').trim() || stripVariantFromName(docId)
+  return { name: fallbackName, fileUrl: '' }
+}
+
 /**
  * Fetch active fonts from Firestore
  */
@@ -23,23 +81,31 @@ export async function fetchFontsFromFirestore(): Promise<FontData[]> {
   }
 
   try {
-    const snapshot = await adminDb
-      .collection('fonts')
-      .where('active', '==', true)
-      .get()
+    // Read all fonts, then apply default-active behavior in code.
+    // This keeps legacy docs working even if they don't contain "active".
+    const snapshot = await adminDb.collection('fonts').get()
 
     const fonts: FontData[] = []
     for (const doc of snapshot.docs) {
       const data = doc.data()
+      const { name, fileUrl } = resolveFontNameAndUrl(data as Record<string, any>, doc.id)
+      if (!name || !fileUrl) continue
+
+      const language = data.language === 'en' ? 'en' : 'ar'
+      const weight = inferWeight(data.weight, doc.id, fileUrl)
+      const style = inferStyle(data.style, doc.id, fileUrl)
+      const format = normalizeFontFormat(data.format, fileUrl)
+      const active = data.active !== false
+
       fonts.push({
         id: doc.id,
-        name: data.name || '',
-        language: data.language || 'ar',
-        weight: data.weight || 400,
-        style: data.style || 'normal',
-        format: data.format || 'truetype',
-        active: data.active !== false,
-        fileUrl: data.fileUrl || '',
+        name,
+        language,
+        weight,
+        style,
+        format,
+        active,
+        fileUrl,
       })
     }
 
@@ -94,12 +160,12 @@ export async function generateFontFaces(): Promise<string> {
       continue
     }
 
-    const format = font.format === 'truetype' ? 'truetype' : 'woff2'
+    const format = normalizeFontFormat(font.format, font.fileUrl)
     const fontFace = `
 @font-face {
   font-family: '${font.name}';
   src: url('data:font/${format};base64,${base64}') format('${format}');
-  font-weight: ${font.weight};
+  font-weight: 100 900;
   font-style: ${font.style};
   font-display: swap;
 }`
@@ -125,7 +191,7 @@ export function getFontFamilyByLanguage(
 
   // Fallback
   if (language === 'ar') {
-    return "'Amiri', 'Cairo', sans-serif"
+    return "'TheSans alinma', 'Amiri', 'Cairo', sans-serif"
   }
   return "'Montserrat', sans-serif"
 }

@@ -1,0 +1,90 @@
+{
+  "generatedAt": "2026-03-08T11:12:07.482Z",
+  "jobId": "be03-race-job-1772968323916",
+  "acquiredCount": 1,
+  "claimedCount": 1,
+  "lockResults": [
+    {
+      "acquired": false,
+      "reason": "already_locked"
+    },
+    {
+      "acquired": true,
+      "lockExpiresAt": "2026-03-08T11:13:04.878Z"
+    },
+    {
+      "acquired": false,
+      "reason": "already_locked"
+    },
+    {
+      "acquired": false,
+      "reason": "already_locked"
+    },
+    {
+      "acquired": false,
+      "reason": "already_locked"
+    },
+    {
+      "acquired": false,
+      "reason": "already_locked"
+    },
+    {
+      "acquired": false,
+      "reason": "already_locked"
+    },
+    {
+      "acquired": false,
+      "reason": "already_locked"
+    },
+    {
+      "acquired": false,
+      "reason": "already_locked"
+    },
+    {
+      "acquired": false,
+      "reason": "already_locked"
+    }
+  ],
+  "idempotencyResults": [
+    {
+      "claimed": false,
+      "reason": "duplicate"
+    },
+    {
+      "claimed": false,
+      "reason": "duplicate"
+    },
+    {
+      "claimed": false,
+      "reason": "duplicate"
+    },
+    {
+      "claimed": false,
+      "reason": "duplicate"
+    },
+    {
+      "claimed": false,
+      "reason": "duplicate"
+    },
+    {
+      "claimed": false,
+      "reason": "duplicate"
+    },
+    {
+      "claimed": true
+    },
+    {
+      "claimed": false,
+      "reason": "duplicate"
+    },
+    {
+      "claimed": false,
+      "reason": "duplicate"
+    },
+    {
+      "claimed": false,
+      "reason": "duplicate"
+    }
+  ],
+  "pass": true
+}

@@ -1,14 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { collection, addDoc } from 'firebase/firestore'
-import { db } from '@/lib/firebase/config'
 import { useAuth } from '@/lib/auth/context'
+import { isAdminEmailClient } from '@/lib/auth/admin-access'
 import type { TemplateType } from '@/lib/template-presets/types'
 import { Upload, Save, X } from 'lucide-react'
 
 export default function AdminTemplatesPage() {
   const { user, loading: authLoading } = useAuth()
+  const isAdmin = isAdminEmailClient(user?.email)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
@@ -16,7 +16,6 @@ export default function AdminTemplatesPage() {
     backgroundFile: null as File | null,
   })
   const [preview, setPreview] = useState<string | null>(null)
-  const [fileType, setFileType] = useState<'image' | 'pdf' | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
   // Require Firebase authentication
@@ -31,17 +30,21 @@ export default function AdminTemplatesPage() {
     )
   }
 
-  if (!user) {
+  if (!user || !isAdmin) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl p-8 shadow-lg max-w-md w-full text-center">
           <h1 className="text-2xl font-bold mb-4">Admin Access Required</h1>
-          <p className="text-muted mb-6">You must be logged in to access this page.</p>
+          <p className="text-muted mb-6">
+            {!user
+              ? 'You must be logged in to access this page.'
+              : 'Your account is logged in, but does not have admin access.'}
+          </p>
           <a
             href="/login"
             className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-accent transition-colors inline-block"
           >
-            Go to Login
+            {!user ? 'Go to Login' : 'Back to Home'}
           </a>
         </div>
       </div>
@@ -49,28 +52,18 @@ export default function AdminTemplatesPage() {
   }
 
   const processFile = (file: File) => {
-    // Check file type
-    if (file.type === 'application/pdf') {
-      setFileType('pdf')
-      setFormData({ ...formData, backgroundFile: file })
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setPreview(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
-    } else if (file.type.startsWith('image/')) {
-      setFileType('image')
-      setFormData({ ...formData, backgroundFile: file })
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setPreview(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
-    } else {
-      alert('الرجاء رفع صورة أو ملف PDF فقط')
-      setFileType(null)
+    if (file.type !== 'application/pdf') {
+      alert('ارفع PDF من PowerPoint للحصول على أفضل جودة')
       setPreview(null)
+      return
     }
+
+    setFormData({ ...formData, backgroundFile: file })
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setPreview(e.target?.result as string)
+    }
+    reader.readAsDataURL(file)
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,7 +76,6 @@ export default function AdminTemplatesPage() {
   const removeFile = () => {
     setFormData({ ...formData, backgroundFile: null })
     setPreview(null)
-    setFileType(null)
     // Reset file input
     const fileInput = document.getElementById('background-upload') as HTMLInputElement
     if (fileInput) {
@@ -114,50 +106,6 @@ export default function AdminTemplatesPage() {
     }
   }
 
-  const generateThumbnail = async (file: File): Promise<File | null> => {
-    // Only generate thumbnail for images, not PDFs
-    if (file.type === 'application/pdf') {
-      return null
-    }
-    
-    // Simple client-side resize for MVP
-    return new Promise((resolve) => {
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        const maxWidth = 400
-        const maxHeight = 600
-        let width = img.width
-        let height = img.height
-
-        if (width > height) {
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width
-            width = maxWidth
-          }
-        } else {
-          if (height > maxHeight) {
-            width = (width * maxHeight) / height
-            height = maxHeight
-          }
-        }
-
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext('2d')
-        ctx?.drawImage(img, 0, 0, width, height)
-        canvas.toBlob((blob) => {
-          if (blob) {
-            resolve(new File([blob], 'thumb.jpg', { type: 'image/jpeg' }))
-          } else {
-            resolve(null)
-          }
-        }, 'image/jpeg', 0.8)
-      }
-      img.src = URL.createObjectURL(file)
-    })
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.backgroundFile) {
@@ -169,12 +117,13 @@ export default function AdminTemplatesPage() {
     try {
       const templateId = crypto.randomUUID()
       const isPdf = formData.backgroundFile.type === 'application/pdf'
-      const fileExtension = isPdf ? 'pdf' : formData.backgroundFile.name.split('.').pop() || 'png'
+      if (!isPdf) {
+        throw new Error('Only PDF is allowed')
+      }
 
-      // Upload file using API route (server-side, bypasses client rules)
+      // Upload PDF and let the server generate final PNG + thumbnail + Firestore document.
       console.log('📤 [CLIENT] Starting upload...', {
         templateId,
-        fileExtension,
         fileName: formData.backgroundFile.name,
         fileSize: formData.backgroundFile.size,
       })
@@ -182,7 +131,8 @@ export default function AdminTemplatesPage() {
       const uploadFormData = new FormData()
       uploadFormData.append('file', formData.backgroundFile)
       uploadFormData.append('templateId', templateId)
-      uploadFormData.append('fileExtension', fileExtension)
+      uploadFormData.append('name', formData.name)
+      uploadFormData.append('type', formData.type)
 
       const uploadResponse = await fetch('/api/upload-template', {
         method: 'POST',
@@ -201,92 +151,26 @@ export default function AdminTemplatesPage() {
         throw new Error(errorMsg)
       }
 
-      const { url: fileUrl, downloadUrl, storagePath } = responseData
+      const { backgroundUrl, backgroundPdfUrl, thumbUrl } = responseData
       console.log('✅ [CLIENT] Upload successful:', {
-        url: fileUrl,
-        downloadUrl,
-        storagePath,
+        backgroundPdfUrl,
+        backgroundUrl,
+        thumbUrl,
       })
 
-      let thumbUrl = fileUrl // Default to file URL for PDFs
-
-      // Generate and upload thumbnail (only for images)
-      if (!isPdf) {
-        const thumbFile = await generateThumbnail(formData.backgroundFile)
-        if (thumbFile) {
-          const thumbFormData = new FormData()
-          thumbFormData.append('file', thumbFile)
-          thumbFormData.append('templateId', templateId)
-          thumbFormData.append('fileExtension', 'jpg')
-          thumbFormData.append('isThumbnail', 'true')
-
-          const thumbResponse = await fetch('/api/upload-template', {
-            method: 'POST',
-            body: thumbFormData,
-          })
-
-          if (thumbResponse.ok) {
-            const { url: thumbUrlResponse } = await thumbResponse.json()
-            thumbUrl = thumbUrlResponse
-          }
+      // If Type B, offer to edit positions
+      if (formData.type === 'B') {
+        const editPositions = confirm('✅ تم رفع التصميم بنجاح!\n\nهل تريد تعديل مواضع العناصر الآن؟')
+        if (editPositions) {
+          window.location.href = `/admin/templates/${templateId}/position-editor`
+          return
         }
-      }
-
-      // Create template document in Firestore
-      console.log('📤 [CLIENT] Creating Firestore document...')
-      console.log('📤 [CLIENT] User auth state:', {
-        uid: user?.uid,
-        email: user?.email,
-        isAuthenticated: !!user,
-      })
-      console.log('📤 [CLIENT] Document data:', {
-        name: formData.name,
-        type: formData.type,
-        status: 'published',
-        fileType: isPdf ? 'pdf' : 'image',
-        assets: {
-          backgroundUrl: fileUrl,
-          thumbUrl,
-        },
-      })
-      
-      try {
-        const docRef = await addDoc(collection(db, 'templates'), {
-          name: formData.name,
-          type: formData.type,
-          status: 'published',
-          fileType: isPdf ? 'pdf' : 'image',
-          assets: {
-            backgroundUrl: fileUrl,
-            thumbUrl,
-          },
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        console.log('✅ [CLIENT] Firestore document created with ID:', docRef.id)
-        
-        // If Type B, offer to edit positions
-        if (formData.type === 'B') {
-          const editPositions = confirm('✅ تم رفع التصميم بنجاح!\n\nهل تريد تعديل مواضع العناصر الآن؟')
-          if (editPositions) {
-            window.location.href = `/admin/templates/${docRef.id}/position-editor`
-            return
-          }
-        }
-      } catch (firestoreError: any) {
-        console.error('❌ [CLIENT] Firestore error:', {
-          code: firestoreError.code,
-          message: firestoreError.message,
-          stack: firestoreError.stack,
-        })
-        throw firestoreError
       }
 
       console.log('✅ [CLIENT] Upload completed successfully')
       alert('✅ تم رفع التصميم بنجاح!')
       setFormData({ name: '', type: 'A', backgroundFile: null })
       setPreview(null)
-      setFileType(null)
     } catch (error: any) {
       console.error('Error uploading template:', error)
       const errorMsg = error.message || 'حدث خطأ أثناء رفع التصميم'
@@ -329,7 +213,10 @@ export default function AdminTemplatesPage() {
             </div>
 
             <div>
-              <label className="block mb-2 font-semibold">ملف التصميم (صورة أو PDF)</label>
+              <label className="block mb-2 font-semibold">ملف التصميم (PDF فقط)</label>
+              <p className="mb-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                ارفع PDF من PowerPoint للحصول على أفضل جودة.
+              </p>
               <div
                 className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                   isDragging
@@ -342,7 +229,7 @@ export default function AdminTemplatesPage() {
               >
                 <input
                   type="file"
-                  accept="image/*,application/pdf"
+                  accept="application/pdf"
                   onChange={handleFileChange}
                   className="hidden"
                   id="background-upload"
@@ -358,7 +245,7 @@ export default function AdminTemplatesPage() {
                         ? 'أفلت الملف هنا'
                         : 'اسحب الملف هنا أو انقر للرفع'}
                     </span>
-                    <span className="text-sm text-gray-400">صورة أو PDF</span>
+                    <span className="text-sm text-gray-400">PDF فقط</span>
                   </label>
                 ) : (
                   <div className="flex flex-col items-center gap-2">
@@ -380,40 +267,22 @@ export default function AdminTemplatesPage() {
               </div>
               {preview && (
                 <div className="mt-4 relative">
-                  {fileType === 'pdf' ? (
-                    <div className="w-full max-w-md mx-auto relative">
-                      <button
-                        type="button"
-                        onClick={removeFile}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-10"
-                        title="حذف الملف"
-                      >
-                        <X size={18} />
-                      </button>
-                      <iframe
-                        src={preview}
-                        className="w-full h-96 rounded-lg shadow border"
-                        title="PDF Preview"
-                      />
-                      <p className="text-center text-muted mt-2">معاينة ملف PDF</p>
-                    </div>
-                  ) : (
-                    <div className="w-full max-w-md mx-auto relative">
-                      <button
-                        type="button"
-                        onClick={removeFile}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-10"
-                        title="حذف الملف"
-                      >
-                        <X size={18} />
-                      </button>
-                      <img
-                        src={preview}
-                        alt="Preview"
-                        className="w-full max-w-md mx-auto rounded-lg shadow"
-                      />
-                    </div>
-                  )}
+                  <div className="w-full max-w-md mx-auto relative">
+                    <button
+                      type="button"
+                      onClick={removeFile}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-10"
+                      title="حذف الملف"
+                    >
+                      <X size={18} />
+                    </button>
+                    <iframe
+                      src={preview}
+                      className="w-full h-96 rounded-lg shadow border"
+                      title="PDF Preview"
+                    />
+                    <p className="text-center text-muted mt-2">معاينة ملف PDF</p>
+                  </div>
                 </div>
               )}
             </div>

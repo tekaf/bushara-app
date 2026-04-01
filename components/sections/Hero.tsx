@@ -3,8 +3,25 @@
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { ArrowLeft, Sparkles } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 export default function Hero() {
+  const [heroImageUrl, setHeroImageUrl] = useState('')
+
+  useEffect(() => {
+    const loadHomeAssets = async () => {
+      try {
+        const response = await fetch('/api/public/home-assets', { cache: 'no-store' })
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) return
+        setHeroImageUrl(String(data?.heroImageUrl || ''))
+      } catch (error) {
+        console.error('Failed to load home hero image:', error)
+      }
+    }
+    loadHomeAssets()
+  }, [])
+
   return (
     <section className="pt-32 pb-20 px-4">
       <div className="container mx-auto">
@@ -78,20 +95,30 @@ export default function Hero() {
             className="relative"
           >
             <div className="bg-gradient-to-br from-primarySoft to-accent/20 rounded-3xl p-8 aspect-square flex items-center justify-center">
-              <div className="bg-white rounded-2xl p-8 shadow-2xl w-full max-w-md">
-                <div className="space-y-4">
-                  <div className="h-4 bg-primary/20 rounded w-3/4"></div>
-                  <div className="h-4 bg-primary/10 rounded w-1/2"></div>
-                  <div className="grid grid-cols-2 gap-4 mt-6">
-                    <div className="bg-primarySoft rounded-lg p-4 aspect-square flex items-center justify-center">
-                      <div className="w-24 h-24 bg-primary/20 rounded-lg"></div>
-                    </div>
-                    <div className="bg-primarySoft rounded-lg p-4 aspect-square flex items-center justify-center">
-                      <div className="w-24 h-24 bg-accent/20 rounded-lg"></div>
+              {heroImageUrl ? (
+                <div className="bg-white rounded-2xl p-3 shadow-2xl w-full max-w-md h-full max-h-[560px]">
+                  <img
+                    src={heroImageUrl}
+                    alt="Hero preview"
+                    className="w-full h-full object-cover rounded-xl"
+                  />
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl p-8 shadow-2xl w-full max-w-md">
+                  <div className="space-y-4">
+                    <div className="h-4 bg-primary/20 rounded w-3/4"></div>
+                    <div className="h-4 bg-primary/10 rounded w-1/2"></div>
+                    <div className="grid grid-cols-2 gap-4 mt-6">
+                      <div className="bg-primarySoft rounded-lg p-4 aspect-square flex items-center justify-center">
+                        <div className="w-24 h-24 bg-primary/20 rounded-lg"></div>
+                      </div>
+                      <div className="bg-primarySoft rounded-lg p-4 aspect-square flex items-center justify-center">
+                        <div className="w-24 h-24 bg-accent/20 rounded-lg"></div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </motion.div>
         </div>

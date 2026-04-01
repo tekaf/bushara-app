@@ -1,0 +1,90 @@
+{
+  "generatedAt": "2026-03-08T12:54:41.797Z",
+  "baseUrl": "http://localhost:3000",
+  "providerMode": "mock",
+  "credentials": {
+    "customerEmail": "phase2.customer.1772974465155@example.com"
+  },
+  "results": [
+    {
+      "id": "P2-AC-01",
+      "name": "Schedule send success",
+      "status": "PASS",
+      "details": "jobId=WIhRhJMojgQQQwgNGRQD, workflowStatus=scheduled",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "P2-AC-02",
+      "name": "Schedule send rejects invalid preconditions",
+      "status": "PASS",
+      "details": "All invalid precondition checks returned rejection.",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "P2-AC-03",
+      "name": "Cancel schedule success before sending",
+      "status": "PASS",
+      "details": "cancelledJobs=1",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "P2-AC-04",
+      "name": "Reschedule success before sending",
+      "status": "PASS",
+      "details": "old=RrscpL5ri3bsTB9y50HG, new=rIHXnlPNiz72ezt5VPip",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "P2-AC-05/06/07",
+      "name": "Process job + provider mapping + auto retry behavior",
+      "status": "FAIL",
+      "details": "process=500, statuses=[scheduled,scheduled,scheduled,scheduled]",
+      "reason": "Provider mapping or retry behavior mismatch.",
+      "fix": "Verify mock provider mode and WK-03 retry conditions."
+    },
+    {
+      "id": "P2-AC-08",
+      "name": "Manual retry failed via API-04",
+      "status": "FAIL",
+      "details": "Dependency missing: P2-AC-05/06/07 did not produce retry invite.",
+      "reason": "Cannot execute manual retry without prior failed guest case.",
+      "fix": "Fix processing/provider scenario first, then rerun."
+    },
+    {
+      "id": "P2-AC-09",
+      "name": "Send-status API consistency",
+      "status": "FAIL",
+      "details": "Dependency missing: no invite available from P2-AC-08.",
+      "reason": "Cannot validate send-status without retry test invite.",
+      "fix": "Fix P2-AC-08 first, then rerun."
+    },
+    {
+      "id": "P2-AC-10/11",
+      "name": "Monitoring UI + Retry UI action",
+      "status": "FAIL",
+      "details": "Dependency missing: no invite available from P2-AC-09.",
+      "reason": "Cannot execute UI monitoring/retry checks without base invite.",
+      "fix": "Fix API send-status scenario first, then rerun."
+    },
+    {
+      "id": "P2-AC-12",
+      "name": "Stalled recovery / restart recovery",
+      "status": "PASS",
+      "details": "recovered=3, stalledStatus=scheduled",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "P2-AC-13",
+      "name": "Race basics: duplicate dispatch pickup prevented",
+      "status": "PASS",
+      "details": "pickedTotal=1, unique=1, job=zot0UEzdeIDxgclHiAEL",
+      "reason": "",
+      "fix": ""
+    }
+  ]
+}

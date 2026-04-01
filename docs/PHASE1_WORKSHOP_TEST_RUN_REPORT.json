@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-03-07T13:16:43.779Z",
+  "baseUrl": "http://localhost:3000",
+  "credentials": {
+    "customerEmail": "phase1.customer.1772889333237@example.com"
+  },
+  "results": [
+    {
+      "id": "AC-01",
+      "name": "New invite enters workshop after payment event",
+      "status": "PASS",
+      "details": "inviteId=eqQFP9sZNPQMxiZigCdh, workflowStatus=in_workshop_review, reviewStatus=pending, internalPreview=present",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "AC-02/AC-03-UI",
+      "name": "UI block checks: guests blocked + preview hidden message",
+      "status": "FAIL",
+      "details": "UI automation error: page.waitForURL: Timeout 60000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================",
+      "reason": "Could not complete UI automation path on current environment.",
+      "fix": "Validate login route/selectors and keep browser executable accessible for automation."
+    },
+    {
+      "id": "AC-02",
+      "name": "Guests blocked before approved on API level",
+      "status": "PASS",
+      "details": "GET=409, POST=409",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "AC-03",
+      "name": "User preview blocked before approved (all user paths)",
+      "status": "PASS",
+      "details": "Preview fields are hidden from invite record before approval.",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "AC-04/AC-07",
+      "name": "Admin queue + notification payload with deep link",
+      "status": "PASS",
+      "details": "queueStatus=200, emailDelivered=false (delivery skipped due provider config)",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "AC-05",
+      "name": "Admin approve unlocks guests flow",
+      "status": "PASS",
+      "details": "approve=200, GET=200, POST=200",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "AC-06",
+      "name": "Return for correction blocks guests again",
+      "status": "PASS",
+      "details": "return=200, guestsGET=409",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "AC-08",
+      "name": "Legacy invite compatibility",
+      "status": "PASS",
+      "details": "legacy guests GET=200",
+      "reason": "",
+      "fix": ""
+    }
+  ]
+}

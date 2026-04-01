@@ -1,6 +1,6 @@
 import type { TemplatePreset, TextBlock } from '@/lib/template-presets/types'
 import { generateFontFaces, getFontFamilyByLanguage, fetchFontsFromFirestore } from './fonts'
-import { applyKashida, shouldApplyKashida } from './kashida'
+import { applyConsistentKashidaPair } from './kashida'
 
 export interface RenderFields {
   intro_text?: string
@@ -9,11 +9,23 @@ export interface RenderFields {
   brideNameAr?: string
   groomNameEn?: string
   brideNameEn?: string
+  date?: string
   dateText?: string
   date_en?: string
   venueText?: string
   location_name?: string
   verse_or_dua?: string
+  motherOfBride?: string
+  motherOfGroom?: string
+  fatherOfBride?: string
+  fatherOfGroom?: string
+  weddingDayLine?: string
+  fullDateLine?: string
+  hallLocation?: string
+  receptionTime?: string
+  zaffaTime?: string
+  noKids?: string | boolean
+  noPhotography?: string | boolean
 }
 
 export interface RenderOptions {
@@ -25,10 +37,23 @@ export interface RenderOptions {
   showGrid?: boolean // Enable grid overlay for positioning
   gridColumns?: number // Number of columns (default: 26 for A-Z)
   gridRows?: number // Number of rows (default: 30)
+  assetBaseUrl?: string
   layoutB?: {
     groom: { xPx: number; yPx: number; fontSize: number; xPct?: number; yPct?: number }
     bride: { xPx: number; yPx: number; fontSize: number; xPct?: number; yPct?: number }
     date: { xPx: number; yPx: number; fontSize: number; xPct?: number; yPct?: number }
+  }
+  blockStyleOverrides?: Record<
+    string,
+    {
+      color?: string
+      fontFamily?: string
+      fontWeight?: number
+    }
+  >
+  ruleIcons?: {
+    noKidsUrl?: string
+    noPhotographyUrl?: string
   }
 }
 
@@ -204,6 +229,41 @@ function calculateOptimalFontSize(
   return Math.max(minFont, fontSize)
 }
 
+function estimateTextWidthPx(text: string, fontSize: number, isArabic: boolean): number {
+  const chars = Array.from(text)
+  let total = 0
+  for (const ch of chars) {
+    if (ch === ' ') total += fontSize * 0.28
+    else if (/[0-9A-Z|]/.test(ch)) total += fontSize * 0.52
+    else total += fontSize * (isArabic ? 0.58 : 0.5)
+  }
+  return total
+}
+
+function fitSingleLineFontSize(text: string, block: TextBlock, boxWidth: number): number {
+  const maxFont = block.font.baseSize
+  const minFont = block.font.minSize || Math.max(14, Math.round(maxFont * 0.55))
+  const isArabic = block.font.familyKey === 'arabic'
+
+  let size = maxFont
+  while (size > minFont) {
+    const estimated = estimateTextWidthPx(text, size, isArabic)
+    if (estimated <= boxWidth - 12) return size
+    size -= 1
+  }
+  return minFont
+}
+
+function isTruthyValue(value: unknown): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    return ['1', 'true', 'yes', 'on', 'enabled', 'y'].includes(normalized)
+  }
+  return false
+}
+
 export async function generateHTML(
   preset: TemplatePreset,
   backgroundUrl: string,
@@ -232,7 +292,30 @@ export async function generateHTML(
     venue: fields.venueText || fields.location_name || '',
     location_name: fields.location_name || fields.venueText || '',
     verse_or_dua: fields.verse_or_dua || '',
+    mother_of_bride: fields.motherOfBride || '',
+    mother_of_groom: fields.motherOfGroom || '',
+    father_of_bride: fields.fatherOfBride || '',
+    father_of_groom: fields.fatherOfGroom || '',
+    wedding_day_line: fields.weddingDayLine || '',
+    full_date_line: fields.fullDateLine || '',
+    hall_location: fields.hallLocation || fields.location_name || fields.venueText || '',
+    reception_time: fields.receptionTime || '',
+    zaffa_time: fields.zaffaTime || '',
+    noKids: String(fields.noKids ?? ''),
+    noPhotography: String(fields.noPhotography ?? ''),
   }
+  const rawFieldEntries = Object.entries((fields || {}) as Record<string, unknown>)
+  for (const [key, value] of rawFieldEntries) {
+    if (value === undefined || value === null || typeof value === 'object') continue
+    if (!fieldMap[key]) {
+      fieldMap[key] = String(value)
+    }
+  }
+
+  // Apply Kashida to groom/bride as a consistent pair.
+  const kashidaPair = applyConsistentKashidaPair(fieldMap.groom_name || '', fieldMap.bride_name || '')
+  fieldMap.groom_name = kashidaPair.groom
+  fieldMap.bride_name = kashidaPair.bride
 
   const debugMode = options.debug || false
   const showGrid = options.showGrid || false
@@ -245,19 +328,68 @@ export async function generateHTML(
   // Generate text blocks HTML
   const textBlocksHTML = preset.textBlocks
     .map((block) => {
-      let text = fieldMap[block.id] || ''
-      if (!text && !debugMode) return '' // Skip empty blocks unless debug mode
+      const isImageBlock = block.kind === 'image'
+      if (isImageBlock) {
+        const visibilityField = block.visibleWhenField || block.id
+        const isVisible = isTruthyValue(fieldMap[visibilityField])
+        if (!isVisible && !debugMode) return ''
 
-      // Apply Kashida for short Arabic names
-      if (shouldApplyKashida(block.id) && text) {
-        text = applyKashida(text)
+        const xPx = Math.round(block.boxPct.x * width)
+        const yPx = Math.round(block.boxPct.y * height)
+        const wPx = Math.round(block.boxPct.w * width)
+        const hPx = Math.round(block.boxPct.h * height)
+        const debugBorder = debugMode ? 'border: 1px dashed rgba(255,0,0,0.5);' : ''
+        const iconOverride =
+          block.id === 'icon_no_kids' || block.visibleWhenField === 'noKids'
+            ? options.ruleIcons?.noKidsUrl || ''
+            : block.id === 'icon_no_photography' || block.visibleWhenField === 'noPhotography'
+            ? options.ruleIcons?.noPhotographyUrl || ''
+            : ''
+        const rawImageSrc = iconOverride || block.imageSrc || ''
+        const imageSrc = rawImageSrc.startsWith('/')
+          ? `${(options.assetBaseUrl || '').replace(/\/$/, '')}${rawImageSrc}`
+          : rawImageSrc
+        if (!imageSrc && !debugMode) return ''
+
+        return `
+          <div
+            class="image-block"
+            data-block-id="${block.id}"
+            style="
+              position: absolute;
+              left: ${xPx}px;
+              top: ${yPx}px;
+              width: ${wPx}px;
+              height: ${hPx}px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              z-index: 1;
+              overflow: hidden;
+              ${debugBorder}
+            "
+          >
+            ${
+              imageSrc
+                ? `<img src="${imageSrc}" alt="${block.id}" style="width: 100%; height: 100%; object-fit: contain;" />`
+                : ''
+            }
+          </div>
+        `
       }
 
+      let text = fieldMap[block.id] || block.fallbackText || ''
+      if (!text && !debugMode) return '' // Skip empty blocks unless debug mode
+
+      const styleOverride = options.blockStyleOverrides?.[block.id] || {}
+
       // Get font family
-      const fontFamily = getFontFamilyByLanguage(
-        block.font.familyKey === 'arabic' ? 'ar' : 'en',
-        fonts
-      )
+      const fontFamily =
+        styleOverride.fontFamily && styleOverride.fontFamily.trim().length > 0
+          ? `'${styleOverride.fontFamily.trim()}'`
+          : block.font.familyName && block.font.familyName.trim().length > 0
+          ? `'${block.font.familyName}'`
+          : getFontFamilyByLanguage(block.font.familyKey === 'arabic' ? 'ar' : 'en', fonts)
 
       // For Type B, use saved layout if available
       let xPx: number
@@ -287,11 +419,67 @@ export async function generateHTML(
         hPx = Math.round(block.boxPct.h * height)
       }
 
-      const fontWeight = block.font.weight
-      const color = block.color
+      // Flexible width for short Arabic name fields: expand box before shrinking text.
+      const isNameField = block.id === 'groom_name' || block.id === 'bride_name'
+      if (text && isNameField) {
+        const estimatedNeededWidth = Math.ceil(estimateTextWidthPx(text, fontSize, true) + 28)
+        if (estimatedNeededWidth > wPx) {
+          const centerX = xPx + wPx / 2
+          const maxWidth = width - 12
+          const nextWidth = Math.min(maxWidth, estimatedNeededWidth)
+          const nextX = Math.max(0, Math.min(width - nextWidth, Math.round(centerX - nextWidth / 2)))
+          wPx = nextWidth
+          xPx = nextX
+        }
+      }
+
+      // Smart fit: force one line by shrinking font if needed.
+      const isSingleLineTarget =
+        block.forceSingleLine === true ||
+        block.maxLines === 1 ||
+        block.id === 'groom_name' ||
+        block.id === 'bride_name'
+      if (text && isSingleLineTarget) {
+        if (block.autoExpandWidthPct && block.autoExpandWidthPct > block.boxPct.w) {
+          const estimatedNeededWidth = Math.ceil(
+            estimateTextWidthPx(text, fontSize, block.font.familyKey === 'arabic') + 24
+          )
+          if (estimatedNeededWidth > wPx) {
+            const centerX = xPx + wPx / 2
+            const maxWidth = Math.min(width - 10, Math.round(block.autoExpandWidthPct * width))
+            const nextWidth = Math.min(maxWidth, estimatedNeededWidth)
+            const nextX = Math.max(0, Math.min(width - nextWidth, Math.round(centerX - nextWidth / 2)))
+            wPx = nextWidth
+            xPx = nextX
+          }
+        }
+        const fitSize = fitSingleLineFontSize(text, { ...block, font: { ...block.font, baseSize: fontSize } }, wPx)
+        fontSize = Math.min(fontSize, fitSize)
+      } else if (text && block.autoFit && !options.layoutB) {
+        // Keep legacy behavior for non-layoutB blocks that use auto-fit.
+        fontSize = calculateOptimalFontSize(text, block, width, height, fontFamily)
+      }
+
+      const fontWeight = Number.isFinite(styleOverride.fontWeight as number)
+        ? Number(styleOverride.fontWeight)
+        : block.font.weight
+      const color = styleOverride.color || block.color
       const textAlign = block.align
-      const lineHeight = block.lineHeight
       const direction = block.font.familyKey === 'arabic' ? 'rtl' : 'ltr'
+      const isArabicBlock = direction === 'rtl'
+      // Keep Arabic glyph dots/descenders from being clipped inside tight boxes.
+      const lineHeight = isArabicBlock ? Math.max(block.lineHeight, 1.15) : block.lineHeight
+      const verticalPad = isArabicBlock ? Math.max(4, Math.round(fontSize * 0.1)) : 0
+      const boldBoostStyle =
+        fontWeight >= 700
+          ? `
+            text-shadow:
+              0 0 0 currentColor,
+              0.28px 0 currentColor,
+              -0.28px 0 currentColor;
+            font-synthesis: weight;
+          `
+          : 'font-synthesis: none;'
 
       // Debug mode: add border and label
       const debugBorder = debugMode ? 'border: 2px solid rgba(255, 0, 0, 0.4);' : ''
@@ -315,6 +503,7 @@ export async function generateHTML(
         <div
           class="text-block"
           data-block-id="${block.id}"
+          data-max-lines="${block.maxLines || 0}"
           style="
             position: absolute;
             left: ${xPx}px;
@@ -331,14 +520,15 @@ export async function generateHTML(
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 0;
+            padding: ${verticalPad}px 6px ${verticalPad + (isArabicBlock ? 2 : 0)}px 6px;
             margin: 0;
             box-sizing: border-box;
-            overflow: hidden;
+            overflow: visible;
             word-wrap: break-word;
-            white-space: pre-wrap;
+            white-space: ${isSingleLineTarget ? 'nowrap' : 'pre-wrap'};
             transform: none;
             zoom: 1;
+            ${boldBoostStyle}
             ${debugBorder}
           "
         >

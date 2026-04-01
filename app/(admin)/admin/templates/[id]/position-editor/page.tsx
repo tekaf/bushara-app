@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase/config'
 import { useAuth } from '@/lib/auth/context'
+import { isAdminEmailClient } from '@/lib/auth/admin-access'
 import type { Template } from '@/lib/firebase/types'
 import { Save, ArrowLeft, Move } from 'lucide-react'
 
@@ -31,6 +32,7 @@ export default function PositionEditorPage() {
   const params = useParams()
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
+  const isAdmin = isAdminEmailClient(user?.email)
   // Decode and validate templateId
   const rawId = params.id as string
   const templateId = rawId && !rawId.includes('[') && !rawId.includes('template-id') 
@@ -60,7 +62,7 @@ export default function PositionEditorPage() {
 
   // Load template
   useEffect(() => {
-    if (!templateId || authLoading) {
+    if (!templateId || authLoading || !isAdmin) {
       if (!templateId && !authLoading) {
         setTemplateExists(false)
         setLoading(false)
@@ -131,7 +133,7 @@ export default function PositionEditorPage() {
     }
 
     loadTemplate()
-  }, [templateId, authLoading])
+  }, [templateId, authLoading, isAdmin])
 
   // Calculate scale to fit canvas in viewport
   useEffect(() => {
@@ -364,17 +366,21 @@ export default function PositionEditorPage() {
     )
   }
 
-  if (!user) {
+  if (!user || !isAdmin) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl p-8 shadow-lg max-w-md w-full text-center">
           <h1 className="text-2xl font-bold mb-4">Admin Access Required</h1>
-          <p className="text-muted mb-6">You must be logged in to access this page.</p>
+          <p className="text-muted mb-6">
+            {!user
+              ? 'You must be logged in to access this page.'
+              : 'Your account is logged in, but does not have admin access.'}
+          </p>
           <a
             href="/login"
             className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-accent transition-colors inline-block"
           >
-            Go to Login
+            {!user ? 'Go to Login' : 'Back to Home'}
           </a>
         </div>
       </div>

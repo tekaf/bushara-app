@@ -35,6 +35,58 @@
       "autoFit": true
     },
     {
+      "id": "father_of_groom",
+      "boxPct": { "x": 0.6400, "y": 0.4100, "w": 0.34, "h": 0.045 },
+      "font": { "familyKey": "arabic", "baseSize": 24, "minSize": 14, "weight": 500 },
+      "color": "#6B6B6B",
+      "align": "center",
+      "lineHeight": 1.2,
+      "letterSpacing": 0,
+      "maxLines": 1,
+      "autoFit": true,
+      "forceSingleLine": true,
+      "autoExpandWidthPct": 0.9
+    },
+    {
+      "id": "mother_of_groom",
+      "boxPct": { "x": 0.6400, "y": 0.4600, "w": 0.34, "h": 0.045 },
+      "font": { "familyKey": "arabic", "baseSize": 24, "minSize": 14, "weight": 500 },
+      "color": "#6B6B6B",
+      "align": "center",
+      "lineHeight": 1.2,
+      "letterSpacing": 0,
+      "maxLines": 1,
+      "autoFit": true,
+      "forceSingleLine": true,
+      "autoExpandWidthPct": 0.9
+    },
+    {
+      "id": "father_of_bride",
+      "boxPct": { "x": 0.1200, "y": 0.4100, "w": 0.34, "h": 0.045 },
+      "font": { "familyKey": "arabic", "baseSize": 24, "minSize": 14, "weight": 500 },
+      "color": "#6B6B6B",
+      "align": "center",
+      "lineHeight": 1.2,
+      "letterSpacing": 0,
+      "maxLines": 1,
+      "autoFit": true,
+      "forceSingleLine": true,
+      "autoExpandWidthPct": 0.9
+    },
+    {
+      "id": "mother_of_bride",
+      "boxPct": { "x": 0.1200, "y": 0.4600, "w": 0.34, "h": 0.045 },
+      "font": { "familyKey": "arabic", "baseSize": 24, "minSize": 14, "weight": 500 },
+      "color": "#6B6B6B",
+      "align": "center",
+      "lineHeight": 1.2,
+      "letterSpacing": 0,
+      "maxLines": 1,
+      "autoFit": true,
+      "forceSingleLine": true,
+      "autoExpandWidthPct": 0.9
+    },
+    {
       "id": "date",
       "boxPct": { "x": 0.4269, "y": 0.6776, "w": 0.50, "h": 0.08 },
       "font": { "familyKey": "english", "baseSize": 24, "minSize": 16, "weight": 400 },

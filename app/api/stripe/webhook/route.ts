@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
-})
+import { FieldValue } from 'firebase-admin/firestore'
+import type Stripe from 'stripe'
+import { getAdminFirestore } from '@/lib/firebase/admin'
+import { getStripeServerClient, isStripeWebhookConfigured } from '@/lib/stripe/server'
 
 // Disable body parsing - we need raw body for signature verification
 export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
-  console.log('WEBHOOK HIT')
-  console.log('has signature?', !!req.headers.get('stripe-signature'))
+  if (!isStripeWebhookConfigured()) {
+    return NextResponse.json({ error: 'Stripe webhook is not configured' }, { status: 503 })
+  }
+  const stripe = getStripeServerClient()
+  if (!stripe) {
+    return NextResponse.json({ error: 'Stripe client not available' }, { status: 503 })
+  }
 
   const sig = req.headers.get('stripe-signature')
 
@@ -33,7 +37,6 @@ export async function POST(req: NextRequest) {
       sig,
       process.env.STRIPE_WEBHOOK_SECRET!
     )
-    console.log('event type:', event.type)
   } catch (err: any) {
     console.error('Webhook signature verification failed:', err.message)
     return NextResponse.json(
@@ -43,14 +46,27 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Handle checkout.session.completed event
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session
-      console.log('✅ Checkout completed:', session.id)
-      // لا تسوي شي ثاني الآن
+      const metadata = session.metadata || {}
+      const adminDb = getAdminFirestore()
+
+      if (adminDb && metadata?.kind === 'gift_package' && metadata?.giftId) {
+        const giftRef = adminDb.collection('gift_codes').doc(String(metadata.giftId))
+        await giftRef.set(
+          {
+            paymentStatus: 'paid',
+            status: 'active',
+            paidAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+            stripeCheckoutSessionId: session.id,
+            stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
+          },
+          { merge: true }
+        )
+      }
     }
 
-    // Return 200 for successful webhook processing
     return NextResponse.json({ received: true }, { status: 200 })
   } catch (err) {
     console.error('Webhook handler failed:', err)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
@@ -12,6 +12,7 @@ import { ArrowLeft } from 'lucide-react'
 
 export default function RegisterPage() {
   const router = useRouter()
+  const searchParams = useMemo(() => new URLSearchParams(typeof window !== 'undefined' ? window.location.search : ''), [])
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -35,10 +36,12 @@ export default function RegisterPage() {
       await setDoc(doc(db, 'users', user.uid), {
         name,
         email,
+        likedTemplateIds: [],
         createdAt: new Date(),
       })
 
-      router.push('/dashboard')
+      const nextPath = searchParams.get('next') || '/dashboard'
+      router.push(nextPath)
     } catch (err: any) {
       setError(err.message || 'حدث خطأ أثناء إنشاء الحساب')
     } finally {
@@ -61,7 +64,7 @@ export default function RegisterPage() {
                 العودة
               </Link>
               <h1 className="text-3xl font-bold mb-2">إنشاء حساب جديد</h1>
-              <p className="text-muted">ابدأ رحلتك مع بشارة</p>
+              <p className="text-muted">ابدأ رحلتك مع Busharh</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -132,7 +135,10 @@ export default function RegisterPage() {
             <div className="mt-6 text-center">
               <p className="text-muted">
                 لديك حساب بالفعل؟{' '}
-                <Link href="/login" className="text-primary font-semibold hover:text-accent">
+                <Link
+                  href={`/login${searchParams.get('next') ? `?next=${encodeURIComponent(searchParams.get('next') || '')}` : ''}`}
+                  className="text-primary font-semibold hover:text-accent"
+                >
                   سجل الدخول
                 </Link>
               </p>
@@ -144,4 +150,6 @@ export default function RegisterPage() {
     </>
   )
 }
+
+
 

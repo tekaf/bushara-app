@@ -1,0 +1,42 @@
+{
+  "generatedAt": "2026-03-08T13:07:38.882Z",
+  "baseUrl": "http://localhost:3000",
+  "providerMode": "mock",
+  "credentials": {
+    "customerEmail": "phase2.closure.1772975186662@example.com"
+  },
+  "results": [
+    {
+      "id": "P2-AC-05/06/07",
+      "name": "Process job + provider mapping + auto retry behavior",
+      "status": "PASS",
+      "details": "process=200, logs=10, g2Attempt=3, g3Attempt=3, g4Attempt=3",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "P2-AC-08",
+      "name": "Manual retry failed via API-04",
+      "status": "PASS",
+      "details": "retryGuests=1, job=UTmDLyPZIWj6WpHai8KO",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "P2-AC-09",
+      "name": "Send-status API consistency",
+      "status": "PASS",
+      "details": "total=4, sent=3, failed=0, active=1",
+      "reason": "",
+      "fix": ""
+    },
+    {
+      "id": "P2-AC-10/11",
+      "name": "Monitoring UI + Retry UI action",
+      "status": "FAIL",
+      "details": "UI automation error: page.waitForURL: Timeout 60000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n  navigated to \"http://localhost:3000/login\"\n============================================================",
+      "reason": "Could not complete UI closure check.",
+      "fix": "Verify login automation/selectors."
+    }
+  ]
+}

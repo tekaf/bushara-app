@@ -24,12 +24,12 @@ export default function BillingPage() {
         <div className="bg-white rounded-2xl p-8 shadow-sm">
           <h2 className="text-2xl font-bold mb-6">الفواتير</h2>
           <div className="text-center py-12">
-            <p className="text-muted mb-4">لا توجد فواتير بعد</p>
+            <p className="text-muted mb-4">تم نقل عرض الباقات المدفوعة إلى صفحة &quot;دعواتي / باقاتي&quot;.</p>
             <Link
-              href="/packages"
+              href="/dashboard/invites"
               className="inline-block bg-primary text-white px-6 py-3 rounded-lg font-semibold hover:bg-accent transition-colors"
             >
-              عرض الباقات
+              الذهاب إلى باقاتي
             </Link>
           </div>
         </div>

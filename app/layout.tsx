@@ -14,14 +14,14 @@ export const metadata: Metadata = {
   description: 'أنشئ دعوات زواج ومناسبات إلكترونية احترافية خلال دقائق',
   icons: {
     icon: [
-      { url: '/favicon.png', type: 'image/png' },
-      { url: '/favicon.png', type: 'image/png', sizes: '32x32' },
-      { url: '/favicon.png', type: 'image/png', sizes: '16x16' },
+      { url: '/api/public/brand-logo', type: 'image/png' },
+      { url: '/api/public/brand-logo', type: 'image/png', sizes: '32x32' },
+      { url: '/api/public/brand-logo', type: 'image/png', sizes: '16x16' },
     ],
     apple: [
-      { url: '/favicon.png', type: 'image/png' },
+      { url: '/api/public/brand-logo', type: 'image/png' },
     ],
-    shortcut: '/favicon.png',
+    shortcut: '/api/public/brand-logo',
   },
 }
 

@@ -9,6 +9,7 @@ export interface SafeArea {
 
 export interface FontConfig {
   familyKey: 'arabic' | 'english'
+  familyName?: string
   baseSize: number
   minSize: number
   weight: number
@@ -16,6 +17,8 @@ export interface FontConfig {
 
 export interface TextBlock {
   id: string
+  kind?: 'text' | 'image'
+  fallbackText?: string
   boxPct: {
     x: number
     y: number
@@ -29,6 +32,10 @@ export interface TextBlock {
   letterSpacing: number
   maxLines: number
   autoFit: boolean
+  forceSingleLine?: boolean
+  autoExpandWidthPct?: number
+  visibleWhenField?: string
+  imageSrc?: string
 }
 
 export interface TemplatePreset {

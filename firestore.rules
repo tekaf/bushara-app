@@ -76,6 +76,15 @@ service cloud.firestore {
       // Allow authenticated users to create renders
       allow create: if isAuthenticated();
     }
+    
+    // Presets (A, B, C) - Admin only
+    match /presets/{presetType} {
+      // Anyone can read presets (for rendering)
+      allow read: if true;
+      
+      // Only authenticated admins can write
+      allow write: if isAuthenticated();
+    }
   }
 }
 

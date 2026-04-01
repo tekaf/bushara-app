@@ -1,0 +1,34 @@
+{
+  "generatedAt": "2026-03-08T20:26:37.056Z",
+  "inviteId": "kPu2558xBNLg7kTKuS31",
+  "userEmail": "phase2.ui.manual.1773001592824@example.com",
+  "steps": [
+    {
+      "step": "login",
+      "result": "ok",
+      "screenshot": "C:\\Users\\malra\\Desktop\\BUSHARA-APP\\docs\\artifacts\\phase2-ui-manual\\01-auth-bootstrap-success.png",
+      "url": "http://localhost:3000/dashboard"
+    },
+    {
+      "step": "ac10-monitoring-ui",
+      "result": "failed",
+      "screenshot": "C:\\Users\\malra\\Desktop\\BUSHARA-APP\\docs\\artifacts\\phase2-ui-manual\\02-monitoring-panel.png",
+      "url": "http://localhost:3000/dashboard/invites/kPu2558xBNLg7kTKuS31"
+    },
+    {
+      "step": "ac11-retry-ui",
+      "result": "failed",
+      "screenshot": "C:\\Users\\malra\\Desktop\\BUSHARA-APP\\docs\\artifacts\\phase2-ui-manual\\03-retry-action-result.png",
+      "url": "http://localhost:3000/dashboard/invites/kPu2558xBNLg7kTKuS31",
+      "details": {
+        "retryVisible": false,
+        "retrySuccess": false,
+        "retryResultShown": false
+      }
+    }
+  ],
+  "verdicts": {
+    "ac10MonitoringUi": false,
+    "ac11RetryUi": false
+  }
+}

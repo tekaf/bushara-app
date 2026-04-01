@@ -3,6 +3,7 @@ import { getAdminBucket, getAdminFirestore } from '@/lib/firebase/admin'
 import type { Template } from '@/lib/firebase/types'
 import { getPreset } from '@/lib/template-presets/loader'
 import { generateHTML, type RenderFields } from '@/lib/render/engine'
+import { formatDateForInvitation } from '@/lib/render/date-format'
 import chromium from '@sparticuz/chromium'
 import playwright from 'playwright-core'
 
@@ -17,11 +18,17 @@ async function getBrowser() {
 
   try {
     // Try to use chromium (for production/Vercel)
-    chromium.setGraphicsMode(false)
+    const graphicsModeControl = (chromium as any).setGraphicsMode
+    if (typeof graphicsModeControl === 'function') {
+      graphicsModeControl(false)
+    } else if (typeof graphicsModeControl === 'boolean') {
+      ;(chromium as any).setGraphicsMode = false
+    }
+    const chromiumHeadless = chromium.headless === 'new' ? true : chromium.headless
     browser = await playwright.chromium.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
+      headless: chromiumHeadless,
     })
     console.log('✅ [RENDER/FINAL] Browser launched with Chromium')
   } catch (chromiumError: any) {
@@ -41,10 +48,31 @@ async function getBrowser() {
   return browser
 }
 
+async function waitForRenderAssets(page: any) {
+  await page.waitForLoadState('networkidle')
+  await page.evaluate(async () => {
+    // Wait for all webfonts used in the document.
+    // @ts-ignore
+    await document.fonts.ready
+
+    // Wait for <img> tags to finish loading.
+    const imgs = Array.from(document.images)
+    await Promise.all(
+      imgs.map((img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise((resolve) => {
+              img.onload = img.onerror = () => resolve(null)
+            })
+      )
+    )
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('📤 [RENDER/FINAL] Starting final render request...')
-    const { templateId, variant, fields: rawFields } = await request.json()
+    const { templateId, variant, fields: rawFields, renderOptions } = await request.json()
 
     console.log('📤 [RENDER/FINAL] Request data:', { templateId, variant, fields: rawFields })
 
@@ -54,18 +82,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Map fields to RenderFields format
+    const formattedDate = formatDateForInvitation(
+      rawFields?.date || rawFields?.dateText || rawFields?.date_en || ''
+    )
     const fields: RenderFields = {
-      groomNameAr: rawFields.groomNameAr,
-      brideNameAr: rawFields.brideNameAr,
-      groomNameEn: rawFields.groomNameEn,
-      brideNameEn: rawFields.brideNameEn,
-      dateText: rawFields.dateText,
-      date_en: rawFields.date_en || rawFields.dateText,
-      venueText: rawFields.venueText,
-      location_name: rawFields.location_name || rawFields.venueText,
-      verse_or_dua: rawFields.verse_or_dua,
-      intro_text: rawFields.intro_text,
-      invite_line: rawFields.invite_line,
+      groomNameAr: rawFields?.groomNameAr,
+      brideNameAr: rawFields?.brideNameAr,
+      groomNameEn: rawFields?.groomNameEn,
+      brideNameEn: rawFields?.brideNameEn,
+      dateText: rawFields?.dateText || formattedDate,
+      date_en: rawFields?.date_en || rawFields?.dateText || formattedDate,
+      venueText: rawFields?.venueText,
+      location_name: rawFields?.location_name || rawFields?.venueText,
+      verse_or_dua: rawFields?.verse_or_dua,
+      intro_text: rawFields?.intro_text,
+      invite_line: rawFields?.invite_line,
+      motherOfBride: rawFields?.motherOfBride,
+      motherOfGroom: rawFields?.motherOfGroom,
+      fatherOfBride: rawFields?.fatherOfBride,
+      fatherOfGroom: rawFields?.fatherOfGroom,
+      weddingDayLine: rawFields?.weddingDayLine,
+      fullDateLine: rawFields?.fullDateLine,
+      hallLocation: rawFields?.hallLocation || rawFields?.venueText,
+      receptionTime: rawFields?.receptionTime,
+      zaffaTime: rawFields?.zaffaTime,
+      noKids: rawFields?.noKids,
+      noPhotography: rawFields?.noPhotography,
     }
 
     // Load template using Admin SDK
@@ -91,9 +133,22 @@ export async function POST(request: NextRequest) {
     } as Template
     console.log('✅ [RENDER/FINAL] Template loaded:', template.name)
 
-    // Load preset
-    const preset = getPreset(template.type)
-    console.log('✅ [RENDER/FINAL] Preset loaded:', template.type)
+    // Load preset (try Firestore first, fallback to JSON)
+    const { loadPresetFromFirestore, mergePresetWithBase } = await import('@/lib/template-presets/loader')
+    const basePreset = await loadPresetFromFirestore(template.type)
+    const preset = template.presetOverride
+      ? mergePresetWithBase(basePreset, template.presetOverride)
+      : basePreset
+    const settingsSnap = await adminDb.collection('systemSettings').doc('uiAssets').get()
+    const settingsData = settingsSnap.exists ? (settingsSnap.data() as any) : {}
+    const ruleIcons = {
+      noKidsUrl: settingsData?.ruleIcons?.noKidsUrl || '',
+      noPhotographyUrl: settingsData?.ruleIcons?.noPhotographyUrl || '',
+    }
+    console.log(
+      '✅ [RENDER/FINAL] Preset loaded:',
+      template.presetOverride ? 'template override' : template.type
+    )
 
     // Generate HTML with fonts from Firestore
     console.log('📤 [RENDER/FINAL] Generating HTML with fonts...')
@@ -109,7 +164,10 @@ export async function POST(request: NextRequest) {
       showGrid: showGrid,
       gridColumns: gridColumns,
       gridRows: gridRows,
-      layoutB: template.layoutB, // Pass saved layout if exists
+      assetBaseUrl: request.nextUrl.origin,
+      layoutB: renderOptions?.layoutB || template.layoutB, // Allow invite-level override, fallback to template.
+      blockStyleOverrides: renderOptions?.blockStyleOverrides || {},
+      ruleIcons,
     })
     console.log('✅ [RENDER/FINAL] HTML generated', debugMode ? '(DEBUG MODE)' : '', showGrid ? '(GRID MODE)' : '')
 
@@ -123,18 +181,19 @@ export async function POST(request: NextRequest) {
       viewport: { 
         width: 1080, 
         height: 1920,
-        deviceScaleFactor: 1,
+        deviceScaleFactor: 3, // High quality final export.
       },
     })
 
     console.log('📤 [RENDER/FINAL] Setting page content...')
     await page.setContent(html, { waitUntil: 'networkidle' })
-    await page.waitForTimeout(1500) // Wait for fonts to load
+    await waitForRenderAssets(page)
 
     console.log('📤 [RENDER/FINAL] Taking screenshot...')
     // HARD-FIX: Exact size screenshot, no scaling
     const screenshot = await page.screenshot({
       type: 'png',
+      scale: 'device',
       clip: {
         x: 0,
         y: 0,

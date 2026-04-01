@@ -1,27 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+import { PACKAGE_PRICE_MAP } from '@/lib/pricing/packages'
+import { getStripeServerClient, isStripeConfigured } from '@/lib/stripe/server'
 
 
 export async function POST(request: NextRequest) {
   try {
-    const { packageId, userId, inviteId } = await request.json()
-
-    // Package prices (in SAR - convert to halalas for Stripe)
-    const packagePrices: Record<string, number> = {
-      '50': 99 * 100,
-      '100': 179 * 100,
-      '150': 249 * 100,
-      '200': 319 * 100,
-      '250': 389 * 100,
-      '300': 459 * 100,
-      '350': 529 * 100,
-      '400': 599 * 100,
-      '450': 669 * 100,
+    if (!isStripeConfigured()) {
+      return NextResponse.json(
+        { error: 'الدفع الإلكتروني غير مفعّل حالياً. يرجى ضبط مفاتيح Stripe في بيئة الخادم.' },
+        { status: 503 }
+      )
+    }
+    const stripe = getStripeServerClient()
+    if (!stripe) {
+      return NextResponse.json(
+        { error: 'تعذر تهيئة بوابة الدفع حالياً. حاول مرة أخرى لاحقاً.' },
+        { status: 503 }
+      )
     }
 
-    const amount = packagePrices[packageId] || 0
+    const { packageId, userId, inviteId } = await request.json()
+
+    const amount = (PACKAGE_PRICE_MAP[packageId] || 0) * 100
 
     if (!amount) {
       return NextResponse.json(

@@ -14,7 +14,11 @@ export default function ProtectedRoute({
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/login')
+      const nextPath =
+        typeof window !== 'undefined'
+          ? `${window.location.pathname}${window.location.search}`
+          : '/dashboard'
+      router.push(`/login?next=${encodeURIComponent(nextPath)}`)
     }
   }, [user, loading, router])
 

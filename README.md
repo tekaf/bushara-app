@@ -1,4 +1,4 @@
-# بشارة (Bushara) - منصة الدعوات الإلكترونية
+# بشارة - منصة الدعوات الإلكترونية
 
 منصة احترافية لإنشاء دعوات زواج ومناسبات إلكترونية مع QR codes وإدارة الحضور.
 
@@ -40,6 +40,11 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+WHATSAPP_ACCESS_TOKEN=your_meta_whatsapp_access_token
+WHATSAPP_PHONE_NUMBER_ID=your_whatsapp_phone_number_id
+WHATSAPP_BUSINESS_ACCOUNT_ID=your_whatsapp_business_account_id
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=your_webhook_verify_token
+WHATSAPP_API_VERSION=v22.0
 ```
 
 ### 3. إعداد Firestore Security Rules

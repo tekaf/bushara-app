@@ -1,0 +1,30 @@
+{
+  "generatedAt": "2026-03-07T13:22:54.246Z",
+  "baseUrl": "http://localhost:3000",
+  "inviteId": "WWZyE8ol31ycatxXsOOW",
+  "userEmail": "phase1.ui.manual.1772889771490@example.com",
+  "steps": [
+    {
+      "step": "login",
+      "result": "ok",
+      "screenshot": "C:\\Users\\malra\\Desktop\\BUSHARA-APP\\docs\\artifacts\\phase1-ui\\01-login-success.png",
+      "url": "http://localhost:3000/dashboard"
+    },
+    {
+      "step": "guests-block-check",
+      "result": "ok",
+      "screenshot": "C:\\Users\\malra\\Desktop\\BUSHARA-APP\\docs\\artifacts\\phase1-ui\\02-guests-blocked-redirect.png",
+      "url": "http://localhost:3000/dashboard/invites/WWZyE8ol31ycatxXsOOW/workshop-status"
+    },
+    {
+      "step": "preview-block-check",
+      "result": "ok",
+      "screenshot": "C:\\Users\\malra\\Desktop\\BUSHARA-APP\\docs\\artifacts\\phase1-ui\\03-preview-block-message.png",
+      "url": "http://localhost:3000/dashboard/invites/WWZyE8ol31ycatxXsOOW"
+    }
+  ],
+  "verdicts": {
+    "guestsBlockedOnUI": true,
+    "previewBlockedOnUI": true
+  }
+}
