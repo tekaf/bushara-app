@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuth } from 'firebase-admin/auth'
+import type { DocumentData, DocumentReference } from 'firebase-admin/firestore'
 import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
 
 export const runtime = 'nodejs'
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest, { params }: { params: { invId: 
       )
     }
     const isOwner = invite?.ownerId === uid
-    let collaboratorRef: any = null
+    let collaboratorRef: DocumentReference<DocumentData> | null = null
     if (!isOwner) {
       collaboratorRef = inviteRef.collection('collaborators').doc(uid)
       const cSnap = await collaboratorRef.get()
