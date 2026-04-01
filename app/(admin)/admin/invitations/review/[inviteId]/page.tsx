@@ -421,7 +421,7 @@ export default function AdminReviewDetailPage() {
             ) : null}
           </div>
           <p className="mb-4 text-sm text-muted">
-            عدّل الخصائص هنا ثم اضغط حفظ، وبعدها اضغط "تحديث صورة الدعوة" لتوليد معاينة داخلية جديدة.
+            عدّل الخصائص هنا ثم اضغط حفظ، وبعدها اضغط &quot;تحديث صورة الدعوة&quot; لتوليد معاينة داخلية جديدة.
           </p>
           {designerLoading ? <p className="mb-3 text-sm text-muted">جاري تحميل إعدادات المصمم...</p> : null}
 
