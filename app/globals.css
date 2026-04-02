@@ -14,3 +14,137 @@
   }
 }
 
+/* stars */
+.stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* each star */
+.stars::before,
+.stars::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: white;
+  border-radius: 50%;
+  opacity: 0.15;
+  animation: twinkle 4s infinite ease-in-out;
+}
+
+/* star positions */
+.stars::before {
+  top: 20%;
+  left: 30%;
+  animation-delay: 0s;
+}
+
+.stars::after {
+  top: 60%;
+  left: 70%;
+  animation-delay: 2s;
+}
+
+.star-3 {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  width: 2px;
+  height: 2px;
+  background: white;
+  border-radius: 50%;
+  opacity: 0.12;
+  animation: twinkle 5s infinite ease-in-out;
+  pointer-events: none;
+}
+
+/* subtle footer stars */
+.footer-frost {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 18% 18%, rgba(224, 207, 255, 0.16), transparent 34%),
+    radial-gradient(circle at 82% 16%, rgba(180, 217, 255, 0.12), transparent 36%);
+  opacity: 0.9;
+}
+
+.footer-stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.footer-stars::before,
+.footer-stars::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: rgba(241, 236, 255, 0.95);
+  border-radius: 50%;
+  opacity: 0.12;
+  box-shadow:
+    0 0 6px rgba(219, 206, 255, 0.28),
+    120px 40px 0 rgba(241, 236, 255, 0.1),
+    -140px 70px 0 rgba(236, 248, 255, 0.1),
+    90px -30px 0 rgba(241, 236, 255, 0.1);
+  animation: footerTwinkle 10s infinite ease-in-out;
+}
+
+.footer-stars::before {
+  top: 22%;
+  left: 34%;
+  animation-delay: 0s;
+}
+
+.footer-stars::after {
+  top: 58%;
+  left: 71%;
+  animation-delay: 3.8s;
+}
+
+.footer-star-3 {
+  position: absolute;
+  top: 40%;
+  left: 49%;
+  width: 2px;
+  height: 2px;
+  background: rgba(236, 248, 255, 0.9);
+  border-radius: 50%;
+  opacity: 0.1;
+  box-shadow: 0 0 5px rgba(176, 210, 255, 0.22);
+  animation: footerTwinkle 11s infinite ease-in-out;
+  animation-delay: 1.9s;
+  pointer-events: none;
+}
+
+@keyframes footerTwinkle {
+  0%,
+  100% {
+    opacity: 0.08;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.2;
+    transform: scale(1.15);
+  }
+}
+
+/* twinkle */
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.4);
+  }
+}
+

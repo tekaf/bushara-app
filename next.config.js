@@ -4,6 +4,15 @@ const nextConfig = {
   images: {
     domains: ['firebasestorage.googleapis.com'],
   },
+  async redirects() {
+    return [
+      {
+        source: '/favicon.ico',
+        destination: '/favicon.png',
+        permanent: false,
+      },
+    ]
+  },
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals.push({

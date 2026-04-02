@@ -7,150 +7,111 @@ import { useAuth } from '@/lib/auth/context'
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
-  const [brandLogoUrl, setBrandLogoUrl] = useState('/favicon.png')
+  const [isScrolled, setIsScrolled] = useState(false)
   const { user } = useAuth()
 
   useEffect(() => {
-    const loadBrandLogo = async () => {
-      try {
-        const response = await fetch('/api/public/home-assets', { cache: 'no-store' })
-        const data = await response.json().catch(() => ({}))
-        if (!response.ok) return
-        const logoUrl = String(data?.brandLogoUrl || '').trim()
-        if (logoUrl) setBrandLogoUrl(logoUrl)
-      } catch {
-        // keep fallback logo
-      }
-    }
-    loadBrandLogo()
+    const onScroll = () => setIsScrolled(window.scrollY > 20)
+    onScroll()
+    window.addEventListener('scroll', onScroll)
+    return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
   return (
-    <nav className="fixed top-0 z-50 w-full border-b border-[#d8e6ff] bg-gradient-to-r from-[#dff0ff]/95 via-[#cfe6ff]/92 to-[#dff0ff]/95 backdrop-blur-md">
-      <div className="container mx-auto px-4 py-4 relative">
-        {/* Logo - Centered at top */}
-        <div className="flex items-center justify-center">
-          <Link href="/" className="flex items-center">
-            <img
-              src={brandLogoUrl}
-              alt="Busharh"
-              className="h-[50px] w-[50px] object-contain"
-            />
-          </Link>
-        </div>
-
-        {/* Desktop Menu - Right side */}
-        <div className="hidden md:flex items-center gap-8 absolute left-4 top-1/2 -translate-y-1/2">
-          <Link
-            href="/packages"
-            className="text-[#3a4a6b] hover:text-primary transition-colors"
-          >
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        isScrolled
+          ? 'bg-white/10 backdrop-blur-2xl border-b border-white/15'
+          : 'bg-white/8 backdrop-blur-xl border-b border-white/10'
+      }`}
+      style={{
+        WebkitBackdropFilter: 'blur(24px)',
+        backgroundImage: `
+          linear-gradient(135deg, rgba(180,150,255,0.12), rgba(120,180,255,0.08)),
+          radial-gradient(circle at top left, rgba(255,255,255,0.20), transparent 35%),
+          radial-gradient(circle at top right, rgba(210,190,255,0.14), transparent 30%)
+        `,
+        boxShadow: isScrolled
+          ? 'inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 30px rgba(90,90,140,0.12)'
+          : 'inset 0 1px 0 rgba(255,255,255,0.4)',
+      }}
+    >
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+      <div className="mx-auto flex h-28 max-w-7xl items-center justify-between px-6 lg:px-10">
+        <nav className="hidden md:flex items-center gap-8 text-[17px] font-medium text-slate-700">
+          <Link href="/packages" className="transition hover:text-slate-900">
             الباقات
           </Link>
-            <Link
-              href="/templates"
-              className="text-[#3a4a6b] hover:text-primary transition-colors"
-            >
-              التصاميم
-            </Link>
-          {user ? (
-            <>
-              <Link
-                href="/dashboard"
-                className="text-[#3a4a6b] hover:text-primary transition-colors"
-              >
-                حسابي
-              </Link>
-              <Link
-                href="/occasions"
-                className="rounded-lg bg-primary px-6 py-2 text-white hover:bg-accent transition-colors"
-              >
-                ابدأ الآن
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/login"
-                className="text-[#3a4a6b] hover:text-primary transition-colors"
-              >
-                تسجيل الدخول
-              </Link>
-              <Link
-                href="/register"
-                className="rounded-lg bg-primary px-6 py-2 text-white hover:bg-accent transition-colors"
-              >
-                ابدأ الآن
-              </Link>
-            </>
-          )}
-        </div>
+          <Link href="/templates" className="transition hover:text-slate-900">
+            التصاميم
+          </Link>
+          <Link href={user ? '/dashboard' : '/login'} className="transition hover:text-slate-900">
+            {user ? 'حسابي' : 'تسجيل الدخول'}
+          </Link>
+        </nav>
 
-        {/* Mobile Menu Button */}
+        <Link href="/" className="flex items-center justify-center">
+          <img
+            src="/favicon.png"
+            alt="بشارة"
+            onError={(event) => {
+              event.currentTarget.src = '/icon.png'
+            }}
+            className="h-28 w-28 object-contain opacity-100 drop-shadow-[0_0_14px_rgba(74,66,118,0.42)]"
+          />
+        </Link>
+
+        <Link
+          href={user ? '/occasions' : '/register'}
+          className="hidden md:inline-flex rounded-2xl border border-white/20 bg-gradient-to-br from-[#b6b2ff]/85 to-[#8f8bff]/85 px-6 py-3 text-lg font-semibold text-white shadow-[0_8px_30px_rgba(137,125,255,0.25)] transition hover:scale-[1.02] hover:shadow-[0_12px_40px_rgba(137,125,255,0.32)]"
+        >
+          ابدأ الآن
+        </Link>
+
         <button
-          className="md:hidden absolute left-4 top-1/2 -translate-y-1/2"
+          className="md:hidden text-slate-700"
           onClick={() => setIsOpen(!isOpen)}
           aria-label="Menu"
         >
           {isOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
+      </div>
 
-        {/* Mobile Menu */}
-        {isOpen && (
-          <div className="md:hidden mt-4 pb-4 space-y-4">
+      {isOpen && (
+        <div className="mx-4 mb-4 rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-2xl md:hidden">
+          <div className="space-y-4 text-slate-700">
             <Link
               href="/packages"
-              className="block text-[#3a4a6b] hover:text-primary transition-colors"
+              className="block transition hover:text-slate-900"
               onClick={() => setIsOpen(false)}
             >
               الباقات
             </Link>
             <Link
               href="/templates"
-              className="block text-[#3a4a6b] hover:text-primary transition-colors"
+              className="block transition hover:text-slate-900"
               onClick={() => setIsOpen(false)}
             >
               التصاميم
             </Link>
-            {user ? (
-              <>
-                <Link
-                  href="/dashboard"
-                  className="block text-[#3a4a6b] hover:text-primary transition-colors"
-                  onClick={() => setIsOpen(false)}
-                >
-                  حسابي
-                </Link>
-                <Link
-                  href="/occasions"
-                  className="block rounded-lg bg-primary px-6 py-2 text-center text-white hover:bg-accent transition-colors"
-                  onClick={() => setIsOpen(false)}
-                >
-                  ابدأ الآن
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="block text-[#3a4a6b] hover:text-primary transition-colors"
-                  onClick={() => setIsOpen(false)}
-                >
-                  تسجيل الدخول
-                </Link>
-                <Link
-                  href="/register"
-                  className="block rounded-lg bg-primary px-6 py-2 text-center text-white hover:bg-accent transition-colors"
-                  onClick={() => setIsOpen(false)}
-                >
-                  ابدأ الآن
-                </Link>
-              </>
-            )}
+            <Link
+              href={user ? '/dashboard' : '/login'}
+              className="block transition hover:text-slate-900"
+              onClick={() => setIsOpen(false)}
+            >
+              {user ? 'حسابي' : 'تسجيل الدخول'}
+            </Link>
+            <Link
+              href={user ? '/occasions' : '/register'}
+              className="block rounded-2xl border border-white/20 bg-gradient-to-br from-[#b6b2ff]/85 to-[#8f8bff]/85 px-6 py-3 text-center text-base font-semibold text-white shadow-[0_8px_30px_rgba(137,125,255,0.25)] transition hover:scale-[1.01]"
+              onClick={() => setIsOpen(false)}
+            >
+              ابدأ الآن
+            </Link>
           </div>
-        )}
-      </div>
-    </nav>
+        </div>
+      )}
+    </header>
   )
 }
 
