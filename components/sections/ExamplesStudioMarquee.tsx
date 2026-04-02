@@ -6,24 +6,36 @@ import type { PreviousExample } from '@/lib/firebase/types'
 export default function ExamplesStudioMarquee() {
   const [items, setItems] = useState<PreviousExample[]>([])
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), 9000)
+
     const load = async () => {
       try {
-        const response = await fetch('/api/public/previous-examples', { cache: 'no-store' })
+        const response = await fetch('/api/public/previous-examples', { signal: controller.signal })
         const data = await response.json()
         if (!response.ok) {
+          setFailed(true)
           return
         }
         const rows = (data?.items || []) as PreviousExample[]
         setItems(rows)
       } catch (error) {
+        setFailed(true)
         console.error('Failed loading examples studio:', error)
       } finally {
+        window.clearTimeout(timeoutId)
         setLoading(false)
       }
     }
     load()
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      controller.abort()
+    }
   }, [])
 
   const displayItems = useMemo(() => {
@@ -49,7 +61,7 @@ export default function ExamplesStudioMarquee() {
   if (!items.length) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-muted">
-        لا توجد أمثلة سابقة حالياً.
+        {failed ? 'تعذر تحميل الأمثلة حاليًا. حاول التحديث بعد قليل.' : 'لا توجد أمثلة سابقة حالياً.'}
       </div>
     )
   }
