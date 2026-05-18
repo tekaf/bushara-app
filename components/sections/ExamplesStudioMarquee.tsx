@@ -20,7 +20,6 @@ function normalizeAssetUrl(value?: string): string {
 export default function ExamplesStudioMarquee() {
   const [adminSamples, setAdminSamples] = useState<SampleCard[]>([])
   const [loading, setLoading] = useState(true)
-  const [failed, setFailed] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const trackRef = useRef<HTMLDivElement | null>(null)
   const dragStateRef = useRef<{ startX: number; startScrollLeft: number; dragging: boolean }>({
@@ -38,7 +37,6 @@ export default function ExamplesStudioMarquee() {
         const response = await fetch('/api/public/previous-examples', { signal: controller.signal })
         const data = await response.json()
         if (!response.ok) {
-          setFailed(true)
           setAdminSamples([])
           return
         }
@@ -55,7 +53,6 @@ export default function ExamplesStudioMarquee() {
 
         setAdminSamples(rows)
       } catch (error) {
-        setFailed(true)
         setAdminSamples([])
         console.error('Failed loading examples studio:', error)
       } finally {
@@ -71,20 +68,49 @@ export default function ExamplesStudioMarquee() {
     }
   }, [])
 
+  const fallbackSamples: SampleCard[] = [
+    {
+      id: 'fallback-1',
+      title: 'Pink roses',
+      imageUrl: '/home/samples/sample-1.webp',
+    },
+    {
+      id: 'fallback-2',
+      title: 'Flower garden',
+      imageUrl: '/home/samples/sample-2.webp',
+    },
+    {
+      id: 'fallback-3',
+      title: 'Butterflies of joy',
+      imageUrl: '/home/samples/sample-3.webp',
+    },
+    {
+      id: 'fallback-4',
+      title: 'Arc of joy',
+      imageUrl: '/home/samples/sample-4.webp',
+    },
+  ]
+
+  const visibleSamples = adminSamples?.length > 0 ? adminSamples : fallbackSamples
+
+  useEffect(() => {
+    console.log('Admin samples:', adminSamples)
+  }, [adminSamples])
+
   const minDisplayItems = 9
   const displayItems = useMemo(() => {
-    if (!adminSamples.length) return []
-    if (adminSamples.length >= minDisplayItems) {
-      return adminSamples.map((item, idx) => ({ ...item, carouselKey: `${item.id}-${idx}` }))
+    if (!visibleSamples.length) return []
+    if (visibleSamples.length >= minDisplayItems) {
+      return visibleSamples.map((item, idx) => ({ ...item, carouselKey: `${item.id}-${idx}` }))
     }
     return Array.from({ length: minDisplayItems }).map((_, idx) => {
-      const source = adminSamples[idx % adminSamples.length]
+      const source = visibleSamples[idx % visibleSamples.length]
       return {
         ...source,
         carouselKey: `${source.id}-${idx}`,
       }
     })
-  }, [adminSamples])
+  }, [visibleSamples])
 
   const updateActiveIndex = () => {
     const track = trackRef.current
@@ -126,14 +152,6 @@ export default function ExamplesStudioMarquee() {
     return (
       <div className="rounded-[28px] border border-[rgba(150,160,190,0.18)] bg-white/75 p-5 text-center text-sm text-[#7B8194] shadow-[0_14px_34px_rgba(31,36,51,0.05)] backdrop-blur-2xl">
         جاري تحميل النماذج...
-      </div>
-    )
-  }
-
-  if (!displayItems.length) {
-    return (
-      <div className="rounded-[28px] border border-[rgba(150,160,190,0.18)] bg-white/75 p-4 text-sm text-[#7B8194] backdrop-blur-2xl">
-        {failed ? 'لا توجد نماذج منشورة حاليًا' : 'لا توجد نماذج منشورة حاليًا'}
       </div>
     )
   }

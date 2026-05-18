@@ -61,8 +61,13 @@ export async function GET() {
 
     console.log('✅ [API][PUBLIC][PREVIOUS_EXAMPLES] fetched:', {
       count: rows.length,
+      isZero: rows.length === 0,
       diagnostics,
     })
+
+    if (!rows.length) {
+      console.warn('⚠️ [API][PUBLIC][PREVIOUS_EXAMPLES] query returned zero published rows')
+    }
 
     return NextResponse.json({ items: rows })
   } catch (error: any) {

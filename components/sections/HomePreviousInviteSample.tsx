@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { PreviousExample } from '@/lib/firebase/types'
 
-const FALLBACK_CONTACT_PREVIEW = '/home/samples/contact-preview.svg'
+const FALLBACK_CONTACT_PREVIEW = '/home/samples/sample-1.webp'
 
 function normalizeAssetUrl(value?: string): string {
   if (!value) return ''
@@ -37,9 +37,14 @@ export default function HomePreviousInviteSample() {
           setImageUrl(previewUrl)
           setTitle(firstWithPreview.title || 'نموذج دعوة سابقة')
           setImageFailed(false)
+        } else {
+          setImageUrl(FALLBACK_CONTACT_PREVIEW)
+          setImageFailed(false)
         }
       } catch (error) {
         console.error('Failed to load previous invite sample:', error)
+        setImageUrl(FALLBACK_CONTACT_PREVIEW)
+        setImageFailed(false)
       } finally {
         window.clearTimeout(timeoutId)
         setLoading(false)
