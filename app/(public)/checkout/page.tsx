@@ -63,39 +63,105 @@ function formatTimeLine(label: string, timeValue: string): string {
   return `${label} ${timeValue}`
 }
 
-function buildFieldsPayloadFromDraft(formData: Record<string, any>) {
-  const receptionTimeValue =
-    formData?.receptionTime ||
+function pickText(...values: any[]): string {
+  for (const value of values) {
+    const text = String(value ?? '').trim()
+    if (text) return text
+  }
+  return ''
+}
+
+function normalizeFormDataForInvite(formData: Record<string, any>, selectedOccasion = ''): Record<string, any> {
+  const raw = formData || {}
+  const invitationType =
+    raw?.invitationType === 'announcement' || raw?.invitationType === 'attendance'
+      ? raw.invitationType
+      : 'attendance'
+  const isEngagement = selectedOccasion === 'engagement'
+  const isAnnouncementOnly = isEngagement && invitationType === 'announcement'
+  const receptionTimeRaw =
+    pickText(raw?.receptionTime, raw?.reception_time, raw?.time) ||
     formatSelectedTime12(
-      String(formData?.receptionHour || ''),
-      String(formData?.receptionMinute || '00'),
-      (String(formData?.receptionPeriod || 'PM') as TimePeriod) || 'PM'
+      String(raw?.receptionHour || raw?.reception_hour || ''),
+      String(raw?.receptionMinute || raw?.reception_minute || '00'),
+      (String(raw?.receptionPeriod || raw?.reception_period || 'PM') as TimePeriod) || 'PM'
     )
-  const zaffaTimeValue =
-    formData?.zaffaTime ||
+  const zaffaTimeRaw =
+    pickText(raw?.zaffaTime, raw?.zaffa_time) ||
     formatSelectedTime12(
-      String(formData?.zaffaHour || ''),
-      String(formData?.zaffaMinute || '00'),
-      (String(formData?.zaffaPeriod || 'PM') as TimePeriod) || 'PM'
+      String(raw?.zaffaHour || raw?.zaffa_hour || ''),
+      String(raw?.zaffaMinute || raw?.zaffa_minute || '00'),
+      (String(raw?.zaffaPeriod || raw?.zaffa_period || 'PM') as TimePeriod) || 'PM'
     )
 
+  const groomNameAr = pickText(raw?.groomNameAr, raw?.groomName, raw?.groom_name)
+  const brideNameAr = pickText(raw?.brideNameAr, raw?.brideName, raw?.bride_name)
+  const hallLocation = pickText(raw?.hallLocation, raw?.locationText, raw?.venueText, raw?.hallName, raw?.locationName)
+  const fullDateLine = pickText(raw?.fullDateLine, raw?.full_date_line)
+  const dateText = pickText(raw?.dateText, raw?.date, fullDateLine)
+  const weddingDayLine = pickText(
+    raw?.weddingDayLine,
+    raw?.wedding_day_line,
+    raw?.weddingDay ? `وذلك بمشيئة الله تعالى يوم ${String(raw?.weddingDay).trim()}` : ''
+  )
+
   return {
-    groomNameAr: String(formData?.groomNameAr || ''),
-    brideNameAr: String(formData?.brideNameAr || ''),
-    fatherOfBride: String(formData?.fatherOfBride || ''),
-    fatherOfGroom: String(formData?.fatherOfGroom || ''),
-    motherOfBride: String(formData?.motherOfBride || ''),
-    motherOfGroom: String(formData?.motherOfGroom || ''),
-    weddingDayLine: formData?.weddingDay ? `وذلك بمشيئة الله تعالى يوم ${formData.weddingDay}` : '',
-    fullDateLine: String(formData?.fullDateLine || ''),
-    hallLocation: String(formData?.hallLocation || ''),
+    ...raw,
+    invitationType,
+    groomNameAr,
+    brideNameAr,
+    groomName: groomNameAr,
+    brideName: brideNameAr,
+    brideFatherName: pickText(raw?.brideFatherName, raw?.fatherOfBride, raw?.father_of_bride),
+    groomFatherName: pickText(raw?.groomFatherName, raw?.fatherOfGroom, raw?.father_of_groom),
+    fatherOfBride: pickText(raw?.fatherOfBride, raw?.father_of_bride),
+    fatherOfGroom: pickText(raw?.fatherOfGroom, raw?.father_of_groom),
+    motherOfBride: pickText(raw?.motherOfBride, raw?.mother_of_bride),
+    motherOfGroom: pickText(raw?.motherOfGroom, raw?.mother_of_groom),
+    dateText,
+    fullDateLine,
+    weddingDayLine,
+    hallLocation: isAnnouncementOnly ? '' : hallLocation,
+    venueText: isAnnouncementOnly ? '' : pickText(raw?.venueText, hallLocation),
+    locationName: isAnnouncementOnly ? '' : pickText(raw?.locationName, hallLocation),
+    receptionTime: isAnnouncementOnly ? '' : receptionTimeRaw,
+    zaffaTime: isEngagement ? '' : zaffaTimeRaw,
+    date: pickText(raw?.date, dateText),
+    engagementDate: pickText(raw?.engagementDate, raw?.date, dateText),
+    noKids: Boolean(raw?.noKids),
+    noPhotography: Boolean(raw?.noPhotography),
+  }
+}
+
+function buildFieldsPayloadFromDraft(formData: Record<string, any>, selectedOccasion = '') {
+  const normalized = normalizeFormDataForInvite(formData || {}, selectedOccasion)
+  const receptionTimeValue = normalized.receptionTime || ''
+  const zaffaTimeValue = normalized.zaffaTime || ''
+  const isEngagement = selectedOccasion === 'engagement'
+
+  return {
+    groomNameAr: String(normalized?.groomNameAr || ''),
+    brideNameAr: String(normalized?.brideNameAr || ''),
+    groomName: String(normalized?.groomName || normalized?.groomNameAr || ''),
+    brideName: String(normalized?.brideName || normalized?.brideNameAr || ''),
+    fatherOfBride: String(normalized?.fatherOfBride || ''),
+    fatherOfGroom: String(normalized?.fatherOfGroom || ''),
+    brideFatherName: String(normalized?.brideFatherName || normalized?.fatherOfBride || ''),
+    groomFatherName: String(normalized?.groomFatherName || normalized?.fatherOfGroom || ''),
+    motherOfBride: isEngagement ? '' : String(normalized?.motherOfBride || ''),
+    motherOfGroom: isEngagement ? '' : String(normalized?.motherOfGroom || ''),
+    weddingDayLine: isEngagement ? '' : String(normalized?.weddingDayLine || ''),
+    fullDateLine: String(normalized?.fullDateLine || ''),
+    hallLocation: String(normalized?.hallLocation || ''),
     receptionTime: formatTimeLine('الاستقبال', receptionTimeValue),
-    zaffaTime: formatTimeLine('الزفة', zaffaTimeValue),
-    venueText: String(formData?.hallLocation || ''),
-    date: String(formData?.date || ''),
-    dateText: String(formData?.dateText || ''),
-    noKids: formData?.noKids ? '1' : '0',
-    noPhotography: formData?.noPhotography ? '1' : '0',
+    zaffaTime: isEngagement ? '' : formatTimeLine('الزفة', zaffaTimeValue),
+    venueText: String(normalized?.venueText || normalized?.hallLocation || ''),
+    date: String(normalized?.date || ''),
+    engagementDate: String(normalized?.engagementDate || normalized?.date || ''),
+    dateText: String(normalized?.dateText || ''),
+    invitationType: String(normalized?.invitationType || 'attendance'),
+    noKids: normalized?.noKids ? '1' : '0',
+    noPhotography: normalized?.noPhotography ? '1' : '0',
   }
 }
 
@@ -116,10 +182,18 @@ export default function CheckoutPage() {
   const [otpVerifying, setOtpVerifying] = useState(false)
   const [otpStatus, setOtpStatus] = useState('')
   const [otpError, setOtpError] = useState('')
+  const [resolvedOrderCode, setResolvedOrderCode] = useState('')
   const [showPhoneVerifyModal, setShowPhoneVerifyModal] = useState(false)
   const [resendSecondsLeft, setResendSecondsLeft] = useState(0)
+  const [bypassCode, setBypassCode] = useState('')
+  const [paymentError, setPaymentError] = useState('')
+  const [gatewayNotice, setGatewayNotice] = useState('')
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null)
   const otpInputRef = useRef<HTMLInputElement | null>(null)
+  const isLocalPhoneVerifyBypassed =
+    typeof window !== 'undefined' &&
+    process.env.NODE_ENV === 'development' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
 
   useEffect(() => {
     const raw = window.sessionStorage.getItem('bushara_checkout_draft')
@@ -194,6 +268,7 @@ export default function CheckoutPage() {
     if (typeof window !== 'undefined') window.sessionStorage.setItem(key, generated)
     return generated
   }, [draft?.templateId])
+  const displayOrderCode = resolvedOrderCode || orderNumber
   const selectedPackage = useMemo(
     () => parsePackageFromParams(draft?.packageGuests || '', draft?.packagePrice || ''),
     [draft?.packageGuests, draft?.packagePrice]
@@ -214,7 +289,6 @@ export default function CheckoutPage() {
       : '-'
 
   const normalizedPhone = normalizeSaudiPhone(phoneInput)
-  const canPay = phoneVerified && !paying && !authLoading
   const otpStep = otpVerificationId ? 2 : 1
 
   const handleOpenPhoneVerifyModal = () => {
@@ -227,6 +301,8 @@ export default function CheckoutPage() {
     setShowPhoneVerifyModal(true)
     setOtpError('')
     setOtpStatus('')
+    setPaymentError('')
+    setGatewayNotice('')
   }
 
   const ensureRecaptcha = () => {
@@ -325,10 +401,35 @@ export default function CheckoutPage() {
   const handleConfirmOtpAndContinue = async () => {
     const ok = await handleVerifyOtp()
     if (!ok) return
-    await handleFakePayment()
+    await handleStartPaymentFlow()
   }
 
-  const handleFakePayment = async () => {
+  const handleBypassPhoneVerifyAndContinue = async () => {
+    if (authLoading) return
+    if (!user) {
+      alert('سجل الدخول أولاً لإكمال الدفع والمتابعة للمدعوين.')
+      router.push('/login')
+      return
+    }
+    if (!normalizedPhone.ok) {
+      setOtpError(normalizedPhone.reason)
+      return
+    }
+    setOtpError('')
+    setOtpStatus('تم حفظ رقم الجوال محلياً بدون تحقق OTP.')
+    setPhoneVerified(true)
+    setVerifiedPhoneE164(normalizedPhone.e164)
+    setVerifiedPhoneLocal(normalizedPhone.local)
+    await handleStartPaymentFlow({
+      phoneE164: normalizedPhone.e164,
+      phoneLocal: normalizedPhone.local,
+    })
+  }
+
+  const finalizeInviteAfterPayment = async (
+    paymentMethod: 'stripe' | 'bypass_code',
+    overridePhone?: { phoneE164: string; phoneLocal: string }
+  ) => {
     if (!draft?.templateId || !hasValidPackage) {
       alert('لا يمكن إكمال الدفع بدون اختيار باقة.')
       router.push('/packages')
@@ -340,7 +441,9 @@ export default function CheckoutPage() {
       router.push('/login')
       return
     }
-    const effectivePhoneE164 = verifiedPhoneE164
+    const effectivePhoneE164 = overridePhone?.phoneE164 || verifiedPhoneE164
+    const effectivePhoneLocal =
+      overridePhone?.phoneLocal || verifiedPhoneLocal || (normalizedPhone.ok ? normalizedPhone.local : '')
     if (!effectivePhoneE164) {
       alert('يرجى توثيق رقم الجوال عبر OTP قبل تأكيد الدفع.')
       return
@@ -353,6 +456,8 @@ export default function CheckoutPage() {
       const existingInviteId = window.sessionStorage.getItem(inviteStorageKey) || ''
       let inviteId = existingInviteId
       let inviteImageUrl = draft.finalUrl || draft.previewUrl || ''
+      const normalizedFormData = normalizeFormDataForInvite(draft.formData || {}, draft.selectedOccasion || '')
+      const sourceDraftId = `${user.uid}_${draft.templateId}`
 
       if (!inviteImageUrl) {
         try {
@@ -362,7 +467,7 @@ export default function CheckoutPage() {
             body: JSON.stringify({
               templateId: draft.templateId,
               variant: 'whatsapp_1080x1920',
-              fields: buildFieldsPayloadFromDraft(draft.formData || {}),
+              fields: buildFieldsPayloadFromDraft(normalizedFormData, draft.selectedOccasion || ''),
             }),
           })
           const renderData = await renderResponse.json().catch(() => ({}))
@@ -375,59 +480,42 @@ export default function CheckoutPage() {
       }
 
       if (existingInviteId) {
-        await setDoc(
-          doc(db, 'invites', existingInviteId),
-          {
-            ownerId: user.uid,
-            title:
-              `دعوة ${draft.formData?.groomNameAr || ''} ${draft.formData?.brideNameAr || ''}`.trim() || 'دعوة جديدة',
-            groomName: draft.formData?.groomNameAr || '',
-            brideName: draft.formData?.brideNameAr || '',
-            date: draft.formData?.date || '',
-            time: draft.formData?.receptionTime || '',
-            locationName: draft.formData?.hallLocation || '',
-            locationMapUrl: '',
-            designId: draft.templateId,
-            packageId: draft.packageGuests || '',
-            packageGuests: Number(draft.packageGuests || 0),
-            packagePrice: Number(draft.packagePrice || 0),
-            guestLimit: Number(draft.packageGuests || 0),
-            finalUrl: draft.finalUrl || '',
-            previewUrl: draft.previewUrl || '',
-            inviteImageUrl,
-            orderNumber,
-            orderStatus: 'pending_review',
-            status: 'paid',
-            paymentStatus: 'paid',
-            inviteLockedAfterPayment: true,
-            customerPhoneE164: effectivePhoneE164,
-            customerPhoneLocal: verifiedPhoneLocal || (normalizedPhone.ok ? normalizedPhone.local : ''),
-            customerPhoneVerified: true,
-            customerPhoneVerifiedAt: new Date(),
-            workflowStatus: INVITE_WORKFLOW_STATUS.AWAITING_PAYMENT,
-            reviewStatus: INVITE_REVIEW_STATUS.PENDING,
-            adminNotificationStatus: 'pending',
-            scheduledSendAt: null,
-            timezone: 'Asia/Riyadh',
-            sendStatusSummary: { total: 0, pending: 0, sent: 0, failed: 0 },
-            lastSendAt: null,
-            paidAt: new Date(),
-            updatedAt: new Date(),
-          },
-          { merge: true }
-        )
-      } else {
-        const inviteRef = await addDoc(collection(db, 'invites'), {
+        const invitePayload = {
           ownerId: user.uid,
-          title:
-            `دعوة ${draft.formData?.groomNameAr || ''} ${draft.formData?.brideNameAr || ''}`.trim() || 'دعوة جديدة',
-          groomName: draft.formData?.groomNameAr || '',
-          brideName: draft.formData?.brideNameAr || '',
-          date: draft.formData?.date || '',
-          time: draft.formData?.receptionTime || '',
-          locationName: draft.formData?.hallLocation || '',
+          sourceDraftId,
+          sourceTemplateId: draft.templateId,
+          sourceDraftLinkedAt: new Date(),
+          title: `دعوة ${normalizedFormData?.groomNameAr || ''} ${normalizedFormData?.brideNameAr || ''}`.trim() || 'دعوة مناسبة جديدة',
+          groomNameAr: normalizedFormData?.groomNameAr || '',
+          brideNameAr: normalizedFormData?.brideNameAr || '',
+          groomName: normalizedFormData?.groomNameAr || '',
+          brideName: normalizedFormData?.brideNameAr || '',
+          brideFatherName: normalizedFormData?.fatherOfBride || '',
+          groomFatherName: normalizedFormData?.fatherOfGroom || '',
+          engagementDate: normalizedFormData?.engagementDate || normalizedFormData?.date || '',
+          invitationType: normalizedFormData?.invitationType || 'attendance',
+          fatherOfBride: normalizedFormData?.fatherOfBride || '',
+          fatherOfGroom: normalizedFormData?.fatherOfGroom || '',
+          motherOfBride: normalizedFormData?.motherOfBride || '',
+          motherOfGroom: normalizedFormData?.motherOfGroom || '',
+          date: normalizedFormData?.date || '',
+          dateText: normalizedFormData?.dateText || '',
+          fullDateLine: normalizedFormData?.fullDateLine || '',
+          weddingDayLine: normalizedFormData?.weddingDayLine || '',
+          time: normalizedFormData?.receptionTime || '',
+          receptionTime: normalizedFormData?.receptionTime || '',
+          zaffaTime: normalizedFormData?.zaffaTime || '',
+          locationName: normalizedFormData?.hallLocation || '',
+          hallLocation: normalizedFormData?.hallLocation || '',
+          venueText: normalizedFormData?.venueText || normalizedFormData?.hallLocation || '',
+          introText: normalizedFormData?.introText || '',
+          inviteLine: normalizedFormData?.inviteLine || '',
+          verseOrDua: normalizedFormData?.verseOrDua || '',
+          formData: normalizedFormData,
           locationMapUrl: '',
           designId: draft.templateId,
+          selectedOccasion: draft.selectedOccasion || '',
+          occasionType: draft.selectedOccasion || '',
           packageId: draft.packageGuests || '',
           packageGuests: Number(draft.packageGuests || 0),
           packagePrice: Number(draft.packagePrice || 0),
@@ -435,13 +523,87 @@ export default function CheckoutPage() {
           finalUrl: draft.finalUrl || '',
           previewUrl: draft.previewUrl || '',
           inviteImageUrl,
-          orderNumber,
+          orderNumber: displayOrderCode,
           orderStatus: 'pending_review',
+          dispatchMode: 'manual',
+          dispatchStatus: 'pending',
           status: 'paid',
           paymentStatus: 'paid',
           inviteLockedAfterPayment: true,
+          paymentMethod,
           customerPhoneE164: effectivePhoneE164,
-          customerPhoneLocal: verifiedPhoneLocal || (normalizedPhone.ok ? normalizedPhone.local : ''),
+          customerPhoneLocal: effectivePhoneLocal,
+          customerPhoneVerified: true,
+          customerPhoneVerifiedAt: new Date(),
+          workflowStatus: INVITE_WORKFLOW_STATUS.AWAITING_PAYMENT,
+          reviewStatus: INVITE_REVIEW_STATUS.PENDING,
+          adminNotificationStatus: 'pending',
+          scheduledSendAt: null,
+          timezone: 'Asia/Riyadh',
+          sendStatusSummary: { total: 0, pending: 0, sent: 0, failed: 0 },
+          lastSendAt: null,
+          paidAt: new Date(),
+          updatedAt: new Date(),
+        }
+        await setDoc(
+          doc(db, 'invites', existingInviteId),
+          invitePayload,
+          { merge: true }
+        )
+      } else {
+        const invitePayload = {
+          ownerId: user.uid,
+          sourceDraftId,
+          sourceTemplateId: draft.templateId,
+          sourceDraftLinkedAt: new Date(),
+          title: `دعوة ${normalizedFormData?.groomNameAr || ''} ${normalizedFormData?.brideNameAr || ''}`.trim() || 'دعوة مناسبة جديدة',
+          groomNameAr: normalizedFormData?.groomNameAr || '',
+          brideNameAr: normalizedFormData?.brideNameAr || '',
+          groomName: normalizedFormData?.groomNameAr || '',
+          brideName: normalizedFormData?.brideNameAr || '',
+          brideFatherName: normalizedFormData?.fatherOfBride || '',
+          groomFatherName: normalizedFormData?.fatherOfGroom || '',
+          engagementDate: normalizedFormData?.engagementDate || normalizedFormData?.date || '',
+          invitationType: normalizedFormData?.invitationType || 'attendance',
+          fatherOfBride: normalizedFormData?.fatherOfBride || '',
+          fatherOfGroom: normalizedFormData?.fatherOfGroom || '',
+          motherOfBride: normalizedFormData?.motherOfBride || '',
+          motherOfGroom: normalizedFormData?.motherOfGroom || '',
+          date: normalizedFormData?.date || '',
+          dateText: normalizedFormData?.dateText || '',
+          fullDateLine: normalizedFormData?.fullDateLine || '',
+          weddingDayLine: normalizedFormData?.weddingDayLine || '',
+          time: normalizedFormData?.receptionTime || '',
+          receptionTime: normalizedFormData?.receptionTime || '',
+          zaffaTime: normalizedFormData?.zaffaTime || '',
+          locationName: normalizedFormData?.hallLocation || '',
+          hallLocation: normalizedFormData?.hallLocation || '',
+          venueText: normalizedFormData?.venueText || normalizedFormData?.hallLocation || '',
+          introText: normalizedFormData?.introText || '',
+          inviteLine: normalizedFormData?.inviteLine || '',
+          verseOrDua: normalizedFormData?.verseOrDua || '',
+          formData: normalizedFormData,
+          locationMapUrl: '',
+          designId: draft.templateId,
+          selectedOccasion: draft.selectedOccasion || '',
+          occasionType: draft.selectedOccasion || '',
+          packageId: draft.packageGuests || '',
+          packageGuests: Number(draft.packageGuests || 0),
+          packagePrice: Number(draft.packagePrice || 0),
+          guestLimit: Number(draft.packageGuests || 0),
+          finalUrl: draft.finalUrl || '',
+          previewUrl: draft.previewUrl || '',
+          inviteImageUrl,
+          orderNumber: displayOrderCode,
+          orderStatus: 'pending_review',
+          dispatchMode: 'manual',
+          dispatchStatus: 'pending',
+          status: 'paid',
+          paymentStatus: 'paid',
+          inviteLockedAfterPayment: true,
+          paymentMethod,
+          customerPhoneE164: effectivePhoneE164,
+          customerPhoneLocal: effectivePhoneLocal,
           customerPhoneVerified: true,
           customerPhoneVerifiedAt: new Date(),
           workflowStatus: INVITE_WORKFLOW_STATUS.AWAITING_PAYMENT,
@@ -454,18 +616,40 @@ export default function CheckoutPage() {
           paidAt: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
+        }
+        const inviteRef = await addDoc(collection(db, 'invites'), {
+          ...invitePayload,
         })
         inviteId = inviteRef.id
         window.sessionStorage.setItem(inviteStorageKey, inviteId)
       }
 
+      let persistedOrderCode = displayOrderCode
+      try {
+        const initOrderResponse = await fetch(`/api/user/invitations/${encodeURIComponent(inviteId)}/initialize-order`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${await user.getIdToken()}`,
+          },
+        })
+        const initOrderData = await initOrderResponse.json().catch(() => ({}))
+        if (!initOrderResponse.ok) {
+          throw new Error(initOrderData?.error || 'تعذر إنشاء كود الطلب الرسمي')
+        }
+        persistedOrderCode = String(initOrderData?.orderCode || '').trim() || displayOrderCode
+        if (persistedOrderCode) setResolvedOrderCode(persistedOrderCode)
+      } catch (error) {
+        console.error('[ORDER] Failed to initialize order foundation after checkout:', error)
+      }
+
       window.sessionStorage.setItem('bushara_current_invite_id', inviteId)
       window.sessionStorage.setItem(`bushara_active_invite_id:${draft.templateId}`, inviteId)
-      window.sessionStorage.setItem('bushara_last_order_number', orderNumber)
+      window.sessionStorage.setItem('bushara_last_order_number', persistedOrderCode)
       window.sessionStorage.setItem(
         'bushara_payment_status',
         JSON.stringify({
-          orderNumber,
+          orderNumber: persistedOrderCode,
+          orderCode: persistedOrderCode,
           paidAt: new Date().toISOString(),
           templateId: draft.templateId,
           inviteId,
@@ -527,6 +711,57 @@ export default function CheckoutPage() {
     }
   }
 
+  const handleStartPaymentFlow = async (overridePhone?: { phoneE164: string; phoneLocal: string }) => {
+    if (!user) {
+      alert('سجل الدخول أولاً لإكمال الدفع.')
+      router.push('/login')
+      return
+    }
+    const effectivePhoneE164 = overridePhone?.phoneE164 || verifiedPhoneE164
+    const effectivePhoneLocal =
+      overridePhone?.phoneLocal || verifiedPhoneLocal || (normalizedPhone.ok ? normalizedPhone.local : '')
+    if (!effectivePhoneE164) {
+      setPaymentError('يرجى توثيق رقم الجوال قبل المتابعة.')
+      return
+    }
+    setPaymentError('')
+    setGatewayNotice('')
+
+    const idToken = await user.getIdToken()
+    const code = String(bypassCode || '').trim()
+    if (code) {
+      const bypassRes = await fetch('/api/stripe/validate-bypass', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code }),
+      })
+      const bypassData = await bypassRes.json().catch(() => ({}))
+      if (bypassRes.ok) {
+        await finalizeInviteAfterPayment('bypass_code', {
+          phoneE164: effectivePhoneE164,
+          phoneLocal: effectivePhoneLocal,
+        })
+        return
+      }
+      if (bypassRes.status !== 403) {
+        setPaymentError(String(bypassData?.error || 'تعذر التحقق من كود التجاوز.'))
+        return
+      }
+      setPaymentError('كود التجاوز غير صحيح. يمكنك تجربة بوابة الدفع الرسمية عند عودتها للعمل.')
+    }
+    setGatewayNotice('اختر وسيلة الدفع أدناه. نأسف، بوابة الدفع تحت الصيانة المؤقتة حالياً.')
+  }
+
+  const showGatewayOptions = phoneVerified && !paying
+
+  const handleGatewayMethodClick = (method: 'apple_pay' | 'card') => {
+    const methodLabel = method === 'apple_pay' ? 'Apple Pay' : 'الدفع بالبطاقة'
+    setPaymentError(`نأسف، ${methodLabel} تحت الصيانة حالياً. سنعيد تفعيل الخدمة قريبًا.`)
+  }
+
   const handleBackToEdit = () => {
     if (!draft?.templateId) {
       router.push('/templates')
@@ -549,7 +784,7 @@ export default function CheckoutPage() {
             steps={[
               { id: 1, label: 'نوع المناسبة' },
               { id: 2, label: 'اختيار القالب' },
-              { id: 3, label: 'بيانات العروس والعريس' },
+              { id: 3, label: 'بيانات المناسبة' },
               { id: 4, label: 'تفاصيل المناسبة' },
               { id: 5, label: 'الدفع' },
             ]}
@@ -585,7 +820,7 @@ export default function CheckoutPage() {
                 <div className="mb-6 flex items-center justify-between">
                   <h2 className="text-2xl font-bold text-textDark">فاتورة الطلب</h2>
                   <span className="rounded-full border border-primary/20 bg-primarySoft px-3 py-1 text-xs font-semibold text-primary">
-                    رقم الطلب: {orderNumber}
+                    رقم الطلب: {displayOrderCode}
                   </span>
                 </div>
 
@@ -683,7 +918,11 @@ export default function CheckoutPage() {
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-xl font-bold text-textDark">توثيق رقم الجوال</h3>
-                <p className="mt-1 text-sm text-muted">أدخل رقمك ثم تحقق بالرمز لإكمال الدفع بأمان.</p>
+                <p className="mt-1 text-sm text-muted">
+                  {isLocalPhoneVerifyBypassed
+                    ? 'وضع محلي: أدخل رقم الجوال وسيتم حفظه مباشرة بدون OTP.'
+                    : 'أدخل رقمك ثم تحقق بالرمز لإكمال الدفع بأمان.'}
+                </p>
               </div>
               <button
                 type="button"
@@ -709,6 +948,7 @@ export default function CheckoutPage() {
                     setOtpCode('')
                     setOtpStatus('')
                     setOtpError('')
+                    setGatewayNotice('')
                     setResendSecondsLeft(0)
                   }}
                   placeholder="05xxxxxxxx"
@@ -731,31 +971,78 @@ export default function CheckoutPage() {
               )}
               {otpStatus && <p className="text-xs text-green-700">{otpStatus}</p>}
               {otpError && <p className="text-xs text-red-600">{otpError}</p>}
+              {paymentError && <p className="text-xs text-red-600">{paymentError}</p>}
+              {gatewayNotice && <p className="text-xs text-amber-700">{gatewayNotice}</p>}
               {otpStep === 2 && resendSecondsLeft > 0 && (
                 <p className="text-xs text-gray-500">إعادة إرسال الرمز خلال {resendSecondsLeft} ثانية</p>
               )}
+              {phoneVerified && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted">اختياري: كود تجاوز الدفع (للاستخدام الداخلي فقط)</p>
+                  <input
+                    type="text"
+                    value={bypassCode}
+                    onChange={(e) => setBypassCode(e.target.value)}
+                    placeholder="أدخل كود التجاوز"
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+              )}
+              {showGatewayOptions ? (
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+                  <p className="mb-2 text-sm font-semibold text-textDark">بوابة الدفع</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => handleGatewayMethodClick('apple_pay')}
+                      className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                    >
+                      Apple Pay
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleGatewayMethodClick('card')}
+                      className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                    >
+                      الدفع بالبطاقة
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <button
               type="button"
-              onClick={otpStep === 1 ? handleSendOtp : handleConfirmOtpAndContinue}
+              onClick={
+                isLocalPhoneVerifyBypassed
+                  ? handleBypassPhoneVerifyAndContinue
+                  : otpStep === 1
+                  ? handleSendOtp
+                  : handleConfirmOtpAndContinue
+              }
               disabled={
-                otpStep === 1
+                isLocalPhoneVerifyBypassed
+                  ? otpSending || otpVerifying || paying || authLoading || !user
+                  : otpStep === 1
                   ? otpSending || otpVerifying || !user
                   : otpSending || otpVerifying || paying || authLoading || !otpCode.trim()
               }
               className="mt-5 h-12 w-full rounded-xl bg-primary font-semibold text-white hover:bg-accent transition-colors disabled:opacity-50"
             >
-              {otpStep === 1
+              {isLocalPhoneVerifyBypassed
+                ? otpVerifying || paying
+                  ? 'جارٍ الحفظ...'
+                  : 'حفظ الرقم والمتابعة'
+                : otpStep === 1
                 ? otpSending
                   ? 'جارٍ إرسال الرمز...'
                   : 'إرسال رمز التحقق'
                 : otpVerifying || paying
-                ? 'جارٍ التأكيد...'
-                : 'تأكيد الرمز والمتابعة'}
+                ? 'جارٍ المعالجة...'
+                : 'تأكيد الرمز وعرض خيارات الدفع'}
             </button>
 
-            <div id="checkout-phone-recaptcha" />
+            {!isLocalPhoneVerifyBypassed && <div id="checkout-phone-recaptcha" />}
           </div>
         </div>
       )}

@@ -3,6 +3,7 @@ import type { Firestore, QueryDocumentSnapshot } from 'firebase-admin/firestore'
 import { createWhatsAppProviderService } from '@/lib/sending/provider-factory'
 import { acquireSendJobLock, buildGuestSendIdempotencyKey, claimSendIdempotency, releaseSendJobLock } from '@/lib/sending/processing-guard'
 import { getWorkflowTransitionError, INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
+import { runDispatchProtection } from '@/lib/dispatch/kernel'
 
 type ProcessSendJobInput = {
   jobId: string
@@ -16,7 +17,7 @@ type ProcessSendJobInput = {
 type JobProcessingSummary = {
   jobId: string
   inviteId: string
-  status: 'completed' | 'partially_completed' | 'failed'
+  status: 'completed' | 'partially_completed' | 'failed' | 'orphan_blocked'
   candidates: number
   attempted: number
   sent: number
@@ -72,6 +73,18 @@ function normalizeOccasionLabel(value: string): string {
   if (key === 'engagement') return 'خطبة'
   if (key === 'special') return 'مناسبة خاصة'
   return String(value || '').trim()
+}
+
+function maskPhone(value: string): string {
+  const input = String(value || '').trim()
+  if (!input) return ''
+  if (input.length <= 4) return '*'.repeat(input.length)
+  return `${'*'.repeat(Math.max(0, input.length - 4))}${input.slice(-4)}`
+}
+
+function dispatchLogTag(orderCode: string, inviteId: string): string {
+  const ref = String(orderCode || inviteId || '').trim() || 'UNKNOWN'
+  return `[DISPATCH][${ref}]`
 }
 
 function buildTemplateVariables(invite: any) {
@@ -146,15 +159,48 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
   const autoRetryDelayMs = Math.max(0, Number(process.env.SEND_AUTO_RETRY_DELAY_MS || 1500))
 
   const jobRef = adminDb.collection('send_jobs').doc(input.jobId)
-  const jobSnap = await jobRef.get()
-  if (!jobSnap.exists) throw new Error('Job not found')
-  const job = jobSnap.data() as any
-  const inviteId = String(job?.inviteId || '').trim()
-  if (!inviteId) throw new Error('Job is missing inviteId')
+  const protection = await runDispatchProtection({
+    adminDb,
+    source: 'process_job',
+    jobId: input.jobId,
+    checkGuestRelations: true,
+    blockOnFailure: true,
+    acquireLock: false,
+  })
+  if (!protection.valid) {
+    console.warn('[ORPHAN_PROTECTION] process-job-blocked', {
+      sendJobId: input.jobId,
+      inviteId: protection.inviteId || '',
+      reason: protection.reason,
+      relationCode: protection.decision,
+    })
+    return {
+      jobId: input.jobId,
+      inviteId: protection.inviteId || '',
+      status: 'orphan_blocked',
+      candidates: 0,
+      attempted: 0,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+    }
+  }
+  const relation = protection.context as any
+  const job = relation?.job || {}
+  const inviteId = String(protection.inviteId || relation?.invite?.id || '').trim()
   const jobStatus = String(job?.status || '')
   if (jobStatus !== 'dispatching' && jobStatus !== 'processing') {
     throw new Error(`Invalid job status for processing: ${jobStatus}`)
   }
+  console.info('[SEND][PROCESS_JOB] started', {
+    jobId: input.jobId,
+    inviteId,
+    previousJobStatus: jobStatus,
+    batchSize,
+    maxConcurrency,
+    messageDelayMs,
+    batchDelayMs,
+  })
 
   const lock = await acquireSendJobLock(adminDb, {
     jobId: input.jobId,
@@ -175,16 +221,36 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
 
   await setInviteWorkflowIfAllowed(adminDb, inviteId, INVITE_WORKFLOW_STATUS.SENDING)
 
-  const inviteRef = adminDb.collection('invites').doc(inviteId)
+  const inviteRef = relation?.inviteRef || adminDb.collection('invites').doc(inviteId)
+  await inviteRef.set(
+    {
+      dispatchMode: 'api',
+      dispatchStatus: 'sending',
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  )
   const guestsSnap = await inviteRef.collection('guests').get()
-  const candidates = guestsSnap.docs.filter((doc) => {
+  const candidates = guestsSnap.docs.filter((doc: any) => {
     const row = doc.data() as any
     return Boolean(getDueSendStatus(row?.sendStatus))
   })
+  console.info('[SEND][PROCESS_JOB] candidates-loaded', {
+    jobId: input.jobId,
+    inviteId,
+    totalGuests: guestsSnap.size,
+    candidateGuests: candidates.length,
+  })
 
   const provider = createWhatsAppProviderService()
-  const inviteSnap = await inviteRef.get()
-  const invite = inviteSnap.exists ? (inviteSnap.data() as any) : {}
+  const invite = relation?.invite || {}
+  const orderCode = String(protection.orderCode || invite?.orderCode || invite?.orderNumber || '').trim()
+  const logTag = dispatchLogTag(orderCode, inviteId)
+  console.info(`${logTag} process-started`, {
+    jobId: input.jobId,
+    inviteId,
+    orderCode: orderCode || null,
+  })
   const templateVars = buildTemplateVariables(invite)
   const templateName = 'bashara_invitation_v1'
   const templateLanguageCode = String(process.env.WHATSAPP_TEMPLATE_LANGUAGE_CODE || 'ar').trim() || 'ar'
@@ -198,7 +264,7 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
   let skipped = 0
   let autoRetried = 0
 
-  const batches = chunk(candidates, batchSize)
+  const batches = chunk<any>(candidates, batchSize)
   for (let b = 0; b < batches.length; b += 1) {
     const batch = batches[b]
     let cursor = 0
@@ -213,6 +279,29 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
           const guestDoc = batch[currentIndex]
           const guest = guestDoc.data() as any
           const guestId = guestDoc.id
+          const guestOrderCode = String(guest?.orderCode || '').trim()
+          if (!guestOrderCode || guestOrderCode !== orderCode) {
+            failed += 1
+            await inviteRef.collection('guests').doc(guestId).set(
+              {
+                sendStatus: 'blocked_orphan',
+                lastSendError: 'Guest relation invalid: orderCode mismatch',
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            )
+            await adminDb.collection('send_logs').add({
+              inviteId,
+              orderCode,
+              guestId,
+              jobId: input.jobId,
+              status: 'failed',
+              errorCode: 'guest_relation_invalid',
+              errorMessage: 'Guest relation invalid: orderCode mismatch',
+              createdAt: FieldValue.serverTimestamp(),
+            })
+            continue
+          }
           if (messageDelayMs > 0 && (currentIndex > 0 || workerIndex > 0)) {
             await sleep(messageDelayMs)
           }
@@ -230,6 +319,7 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
             )
             await adminDb.collection('send_logs').add({
               inviteId,
+              orderCode,
               guestId,
               jobId: input.jobId,
               status: 'skipped',
@@ -241,6 +331,7 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
           }
 
           const recipient = String(guest?.phoneE164 || guest?.phone || '').trim()
+          const maskedRecipient = maskPhone(recipient)
           const guestName = String(guest?.name || 'ضيفنا الكريم').trim()
           const message = defaultMessageTemplate.replace(/\{name\}/g, guestName || 'ضيفنا الكريم')
           const rsvpToken = String(guest?.rsvpToken || '').trim()
@@ -253,6 +344,13 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
           let terminalFailureCode = 'unknown'
 
           if (missingTemplateInputs.length) {
+            console.warn('[SEND][PROCESS_JOB] guest-send-blocked-template-inputs', {
+              jobId: input.jobId,
+              inviteId,
+              guestId,
+              to: maskedRecipient,
+              missingTemplateInputs,
+            })
             failed += 1
             terminalFailureCode = 'template_input_missing'
             terminalFailureMessage = `Missing WhatsApp template inputs: ${missingTemplateInputs.join(', ')}`
@@ -266,8 +364,17 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
               },
               { merge: true }
             )
+            console.info('[SEND][PROCESS_JOB] guest-status-updated', {
+              jobId: input.jobId,
+              inviteId,
+              guestId,
+              to: maskedRecipient,
+              newStatus: 'failed',
+              reason: terminalFailureMessage,
+            })
             await adminDb.collection('send_logs').add({
               inviteId,
+              orderCode,
               guestId,
               jobId: input.jobId,
               status: 'failed',
@@ -301,6 +408,7 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
               terminalFailureMessage = 'Guest send already processed for this idempotency key.'
               await adminDb.collection('send_logs').add({
                 inviteId,
+                orderCode,
                 guestId,
                 jobId: input.jobId,
                 status: 'skipped',
@@ -314,6 +422,14 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
             }
 
             attempted += 1
+            console.info('[SEND][PROCESS_JOB] guest-send-attempt', {
+              jobId: input.jobId,
+              inviteId,
+              guestId,
+              to: maskedRecipient,
+              attempt,
+              idempotencyKey,
+            })
             await inviteRef.collection('guests').doc(guestId).set(
               {
                 sendStatus: 'send_pending',
@@ -321,6 +437,14 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
               },
               { merge: true }
             )
+            console.info('[SEND][PROCESS_JOB] guest-status-updated', {
+              jobId: input.jobId,
+              inviteId,
+              guestId,
+              to: maskedRecipient,
+              newStatus: 'send_pending',
+              attempt,
+            })
 
             try {
               const result = await provider.sendMessage(
@@ -353,6 +477,16 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
               if (!result.accepted) {
                 throw new Error('Provider did not accept the message')
               }
+              console.info('[SEND][PROCESS_JOB] provider-send-success', {
+                jobId: input.jobId,
+                inviteId,
+                guestId,
+                to: maskedRecipient,
+                attempt,
+                provider: provider.providerName,
+                providerMessageId: result.providerMessageId || null,
+                providerStatus: result.providerStatus || null,
+              })
 
               guestSent = true
               sent += 1
@@ -367,8 +501,18 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
                 },
                 { merge: true }
               )
+              console.info('[SEND][PROCESS_JOB] guest-status-updated', {
+                jobId: input.jobId,
+                inviteId,
+                guestId,
+                to: maskedRecipient,
+                newStatus: 'sent',
+                attempt,
+                providerMessageId: result.providerMessageId || null,
+              })
               await adminDb.collection('send_logs').add({
                 inviteId,
+                orderCode,
                 guestId,
                 jobId: input.jobId,
                 status: 'accepted',
@@ -383,9 +527,22 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
               terminalFailureCode = normalized.code || normalized.kind || 'unknown'
               terminalFailureMessage = normalized.message || 'Unknown provider error'
               const shouldRetry = isRetryableErrorKind(normalized.kind) && attempt < maxAttempts
+              console.error('[SEND][PROCESS_JOB] provider-send-failed', {
+                jobId: input.jobId,
+                inviteId,
+                guestId,
+                to: maskedRecipient,
+                attempt,
+                provider: provider.providerName,
+                errorKind: normalized.kind || 'unknown',
+                errorCode: terminalFailureCode,
+                errorMessage: terminalFailureMessage,
+                willRetry: shouldRetry,
+              })
 
               await adminDb.collection('send_logs').add({
                 inviteId,
+                orderCode,
                 guestId,
                 jobId: input.jobId,
                 status: 'failed',
@@ -420,6 +577,15 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
               },
               { merge: true }
             )
+            console.info('[SEND][PROCESS_JOB] guest-status-updated', {
+              jobId: input.jobId,
+              inviteId,
+              guestId,
+              to: maskedRecipient,
+              newStatus: 'failed',
+              attempts: currentAttempts,
+              reason: terminalFailureMessage,
+            })
           }
         }
       })
@@ -451,6 +617,17 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
     },
     { merge: true }
   )
+  console.info('[SEND][PROCESS_JOB] job-summary-updated', {
+    jobId: input.jobId,
+    inviteId,
+    finalStatus,
+    candidates: candidates.length,
+    attempted,
+    sent,
+    failed,
+    skipped,
+    autoRetried,
+  })
 
   await releaseSendJobLock(adminDb, { jobId: input.jobId, lockOwner }).catch(() => null)
 
@@ -466,6 +643,20 @@ export async function processSendJob(adminDb: Firestore, input: ProcessSendJobIn
     {
       sendStatusSummary: inviteSummary,
       lastSendAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  )
+  console.info(`${logTag} invite-summary-updated`, {
+    jobId: input.jobId,
+    inviteId,
+    summary: inviteSummary,
+  })
+
+  await inviteRef.set(
+    {
+      dispatchMode: 'api',
+      dispatchStatus: finalStatus === 'completed' ? 'completed' : 'failed',
       updatedAt: FieldValue.serverTimestamp(),
     },
     { merge: true }

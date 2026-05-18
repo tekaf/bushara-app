@@ -27,10 +27,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const snap = await adminDb
-      .collection('previousExamples')
-      .where('status', '==', 'published')
-      .get()
+    const snap = await adminDb.collection('previousExamples').get()
 
     const items = snap.docs
       .map((doc) => {
@@ -38,6 +35,7 @@ export async function GET(request: NextRequest) {
         return {
           id: doc.id,
           title: data?.title || 'دعوة سابقة',
+          sortOrder: Number.isFinite(Number(data?.sortOrder)) ? Number(data.sortOrder) : 9999,
           status: data?.status || 'published',
           sourceType: data?.sourceType || 'image',
           assets: data?.assets || {},
@@ -45,7 +43,10 @@ export async function GET(request: NextRequest) {
           updatedAt: data?.updatedAt?.toMillis?.() || 0,
         }
       })
-      .sort((a, b) => b.createdAt - a.createdAt)
+      .sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+        return b.createdAt - a.createdAt
+      })
 
     return NextResponse.json({ items })
   } catch (error: any) {
@@ -81,13 +82,27 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
     const titleRaw = (formData.get('title') as string) || ''
+    const sortOrderRaw = (formData.get('sortOrder') as string) || ''
+    const statusRaw = String(formData.get('status') || 'published').trim().toLowerCase()
     const title = titleRaw.trim()
+    const parsedSortOrder = Number(sortOrderRaw)
+    const status = statusRaw === 'draft' ? 'draft' : 'published'
 
     if (!file) {
       return NextResponse.json({ error: 'Missing file' }, { status: 400 })
     }
     if (!title) {
       return NextResponse.json({ error: 'Missing title' }, { status: 400 })
+    }
+
+    let sortOrder = Number.isFinite(parsedSortOrder) ? parsedSortOrder : 0
+    if (!Number.isFinite(parsedSortOrder)) {
+      const latestSnap = await adminDb.collection('previousExamples').get()
+      const maxSort = latestSnap.docs.reduce((acc, row) => {
+        const value = Number((row.data() as any)?.sortOrder || 0)
+        return Number.isFinite(value) && value > acc ? value : acc
+      }, 0)
+      sortOrder = maxSort + 10
     }
 
     const isPdf = file.type === 'application/pdf'
@@ -158,7 +173,8 @@ export async function POST(request: NextRequest) {
 
     await exampleRef.set({
       title,
-      status: 'published',
+      sortOrder,
+      status,
       sourceType: isPdf ? 'pdf' : 'image',
       assets: {
         sourceUrl,
@@ -181,6 +197,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       id: exampleId,
       title,
+      sortOrder,
       sourceType: isPdf ? 'pdf' : 'image',
       assets: { sourceUrl, previewUrl, thumbUrl },
     })

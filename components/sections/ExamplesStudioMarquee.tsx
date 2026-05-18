@@ -1,9 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { collection, getDocs, query, where } from 'firebase/firestore'
-import { db } from '@/lib/firebase/config'
-import type { Template } from '@/lib/firebase/types'
+import type { PreviousExample } from '@/lib/firebase/types'
 
 type SampleCard = {
   id: string
@@ -20,7 +18,7 @@ function normalizeAssetUrl(value?: string): string {
 }
 
 export default function ExamplesStudioMarquee() {
-  const [designSamples, setDesignSamples] = useState<SampleCard[]>([])
+  const [executedInvitationSamples, setExecutedInvitationSamples] = useState<SampleCard[]>([])
   const [loading, setLoading] = useState(true)
   const [activeIndex, setActiveIndex] = useState(0)
   const [brokenSampleIds, setBrokenSampleIds] = useState<Record<string, boolean>>({})
@@ -32,18 +30,16 @@ export default function ExamplesStudioMarquee() {
   })
 
   useEffect(() => {
-    const fetchDesignSamples = async () => {
+    const fetchExecutedInvitationSamples = async () => {
       try {
-        // Same source used by /templates page.
-        const q = query(collection(db, 'templates'), where('status', '==', 'published'))
-        const snapshot = await getDocs(q)
-        const rawItems = (snapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate?.() || new Date(0),
-          })) as Template[])
-          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        const response = await fetch('/api/public/previous-examples', { cache: 'no-store' })
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          console.error('Failed loading executed invitation samples:', data)
+          setExecutedInvitationSamples([])
+          return
+        }
+        const rawItems = (data?.items || []) as PreviousExample[]
 
         const normalizeSample = (item: any): SampleCard => {
           const imageUrl = normalizeAssetUrl(
@@ -53,8 +49,10 @@ export default function ExamplesStudioMarquee() {
               item.coverUrl ||
               item.assets?.previewUrl ||
               item.assets?.thumbnailUrl ||
+              item.assets?.thumbUrl ||
               item.assets?.backgroundUrl ||
-              item.assets?.thumbUrl
+              item.previewUrl ||
+              item.thumbnailUrl
           )
           return {
             id: String(item.id || ''),
@@ -68,19 +66,19 @@ export default function ExamplesStudioMarquee() {
         console.log('[HOME_SAMPLES_RAW]', rawItems)
         console.log('[HOME_SAMPLES_NORMALIZED]', normalizedItems)
 
-        setDesignSamples(normalizedItems)
+        setExecutedInvitationSamples(normalizedItems)
       } catch (error) {
-        setDesignSamples([])
+        setExecutedInvitationSamples([])
         console.error('Failed loading examples studio:', error)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchDesignSamples()
+    fetchExecutedInvitationSamples()
   }, [])
 
-  const visibleSamples = designSamples
+  const visibleSamples = executedInvitationSamples
 
   const realSamples = useMemo(
     () =>

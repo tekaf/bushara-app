@@ -3,24 +3,12 @@
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { ArrowLeft, Sparkles } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+
+const HERO_INVITATION_IMAGE = '/home/hero-invitation.webp'
 
 export default function Hero() {
-  const [heroImageUrl, setHeroImageUrl] = useState('')
-
-  useEffect(() => {
-    const loadHomeAssets = async () => {
-      try {
-        const response = await fetch('/api/public/home-assets', { cache: 'no-store' })
-        const data = await response.json().catch(() => ({}))
-        if (!response.ok) return
-        setHeroImageUrl(String(data?.heroImageUrl || ''))
-      } catch (error) {
-        console.error('Failed to load home hero image:', error)
-      }
-    }
-    loadHomeAssets()
-  }, [])
+  const [imageFailed, setImageFailed] = useState(false)
 
   return (
     <section className="relative overflow-hidden px-4 pb-20 pt-32">
@@ -92,28 +80,20 @@ export default function Hero() {
             className="relative"
           >
             <div className="flex aspect-square items-center justify-center rounded-[30px] border border-[rgba(150,160,190,0.18)] bg-[rgba(255,255,255,0.72)] p-8 shadow-[0_24px_80px_rgba(31,36,51,0.08)] backdrop-blur-2xl">
-              {heroImageUrl ? (
+              {!imageFailed ? (
                 <div className="h-full max-h-[560px] w-full max-w-md rounded-2xl border border-white/80 bg-white/80 p-3 shadow-[0_16px_44px_rgba(31,36,51,0.12)]">
                   <img
-                    src={heroImageUrl}
-                    alt="Hero preview"
+                    src={HERO_INVITATION_IMAGE}
+                    alt="Hero invitation"
                     className="w-full h-full object-cover rounded-xl"
+                    loading="lazy"
+                    decoding="async"
+                    onError={() => setImageFailed(true)}
                   />
                 </div>
               ) : (
-                <div className="w-full max-w-md rounded-2xl border border-white/80 bg-white/80 p-8 shadow-[0_16px_44px_rgba(31,36,51,0.12)]">
-                  <div className="space-y-4">
-                    <div className="h-4 w-3/4 rounded bg-[#6D5DFB]/20"></div>
-                    <div className="h-4 w-1/2 rounded bg-[#6D5DFB]/10"></div>
-                    <div className="grid grid-cols-2 gap-4 mt-6">
-                      <div className="flex aspect-square items-center justify-center rounded-lg bg-[#EEEAFE] p-4">
-                        <div className="h-24 w-24 rounded-lg bg-[#6D5DFB]/20"></div>
-                      </div>
-                      <div className="flex aspect-square items-center justify-center rounded-lg bg-[#EEEAFE] p-4">
-                        <div className="h-24 w-24 rounded-lg bg-[#5F6CFF]/20"></div>
-                      </div>
-                    </div>
-                  </div>
+                <div className="w-full max-w-md rounded-2xl border border-white/80 bg-white/80 p-6 text-center text-sm text-[#7B8194] shadow-[0_16px_44px_rgba(31,36,51,0.12)]">
+                  صورة الدعوة غير متاحة حاليًا.
                 </div>
               )}
             </div>
