@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { PreviousExample } from '@/lib/firebase/types'
+import { collection, getDocs, query, where } from 'firebase/firestore'
+import { db } from '@/lib/firebase/config'
+import type { Template } from '@/lib/firebase/types'
 
 type SampleCard = {
   id: string
@@ -18,7 +20,7 @@ function normalizeAssetUrl(value?: string): string {
 }
 
 export default function ExamplesStudioMarquee() {
-  const [adminSamples, setAdminSamples] = useState<SampleCard[]>([])
+  const [designSamples, setDesignSamples] = useState<SampleCard[]>([])
   const [loading, setLoading] = useState(true)
   const [activeIndex, setActiveIndex] = useState(0)
   const [brokenSampleIds, setBrokenSampleIds] = useState<Record<string, boolean>>({})
@@ -30,50 +32,55 @@ export default function ExamplesStudioMarquee() {
   })
 
   useEffect(() => {
-    const controller = new AbortController()
-    const timeoutId = window.setTimeout(() => controller.abort(), 9000)
-
-    const load = async () => {
+    const fetchDesignSamples = async () => {
       try {
-        const response = await fetch('/api/public/previous-examples', { signal: controller.signal })
-        const data = await response.json()
-        if (!response.ok) {
-          setAdminSamples([])
-          return
-        }
-        const rows = ((data?.items || []) as PreviousExample[])
-          .map((item) => {
-            const imageUrl = normalizeAssetUrl(item.assets?.previewUrl || item.assets?.thumbUrl)
-            return {
-              id: item.id,
-              title: item.title || 'دعوة من أعمالنا السابقة',
-              imageUrl,
-            }
-          })
-          .filter((item) => Boolean(item.imageUrl))
+        // Same source used by /templates page.
+        const q = query(collection(db, 'templates'), where('status', '==', 'published'))
+        const snapshot = await getDocs(q)
+        const rawItems = (snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate?.() || new Date(0),
+          })) as Template[])
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 
-        setAdminSamples(rows)
+        const normalizeSample = (item: any): SampleCard => {
+          const imageUrl = normalizeAssetUrl(
+            item.imageUrl ||
+              item.previewUrl ||
+              item.thumbnailUrl ||
+              item.coverUrl ||
+              item.assets?.previewUrl ||
+              item.assets?.thumbnailUrl ||
+              item.assets?.backgroundUrl ||
+              item.assets?.thumbUrl
+          )
+          return {
+            id: String(item.id || ''),
+            title: String(item.title || item.name || 'نموذج دعوة'),
+            imageUrl,
+          }
+        }
+
+        const normalizedItems = rawItems.map(normalizeSample).filter((item) => Boolean(item.imageUrl))
+
+        console.log('[HOME_SAMPLES_RAW]', rawItems)
+        console.log('[HOME_SAMPLES_NORMALIZED]', normalizedItems)
+
+        setDesignSamples(normalizedItems)
       } catch (error) {
-        setAdminSamples([])
+        setDesignSamples([])
         console.error('Failed loading examples studio:', error)
       } finally {
-        window.clearTimeout(timeoutId)
         setLoading(false)
       }
     }
-    load()
 
-    return () => {
-      window.clearTimeout(timeoutId)
-      controller.abort()
-    }
+    fetchDesignSamples()
   }, [])
 
-  const visibleSamples = adminSamples
-
-  useEffect(() => {
-    console.log('Admin samples:', adminSamples)
-  }, [adminSamples])
+  const visibleSamples = designSamples
 
   const realSamples = useMemo(
     () =>
