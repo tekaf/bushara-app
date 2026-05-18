@@ -17,6 +17,7 @@ export default function HomePreviousInviteSample() {
   const [imageUrl, setImageUrl] = useState(FALLBACK_CONTACT_PREVIEW)
   const [title, setTitle] = useState('نموذج دعوة سابقة')
   const [loading, setLoading] = useState(true)
+  const [imageFailed, setImageFailed] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -35,6 +36,7 @@ export default function HomePreviousInviteSample() {
           )
           setImageUrl(previewUrl)
           setTitle(firstWithPreview.title || 'نموذج دعوة سابقة')
+          setImageFailed(false)
         }
       } catch (error) {
         console.error('Failed to load previous invite sample:', error)
@@ -59,11 +61,16 @@ export default function HomePreviousInviteSample() {
           <div className="flex h-full w-full items-center justify-center text-sm text-[#7B8194]">
             جاري التحميل...
           </div>
-        ) : imageUrl ? (
-          <img src={imageUrl} alt="Previous invite sample" className="h-full w-full object-cover [image-rendering:auto]" />
+        ) : imageUrl && !imageFailed ? (
+          <img
+            src={imageUrl}
+            alt="Previous invite sample"
+            className="h-full w-full object-cover [image-rendering:auto]"
+            onError={() => setImageFailed(true)}
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-sm text-[#7B8194]">
-            لا توجد أمثلة سابقة حالياً.
+            لا توجد نماذج منشورة حاليًا
           </div>
         )}
       </div>

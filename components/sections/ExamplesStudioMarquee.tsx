@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PreviousExample } from '@/lib/firebase/types'
 
-const FALLBACK_SAMPLE_URLS = [
-  '/home/samples/sample-1.svg',
-  '/home/samples/sample-2.svg',
-  '/home/samples/sample-3.svg',
-]
+type SampleCard = {
+  id: string
+  title: string
+  imageUrl: string
+}
 
 function normalizeAssetUrl(value?: string): string {
   if (!value) return ''
@@ -17,25 +17,8 @@ function normalizeAssetUrl(value?: string): string {
   return `/${value}`
 }
 
-function createFallbackItems(): PreviousExample[] {
-  return FALLBACK_SAMPLE_URLS.map((url, idx) => ({
-    id: `fallback-${idx + 1}`,
-    title: `نموذج ${idx + 1}`,
-    sortOrder: idx + 1,
-    status: 'published',
-    sourceType: 'image',
-    assets: {
-      sourceUrl: url,
-      previewUrl: url,
-      thumbUrl: url,
-    },
-    createdAt: new Date(0),
-    updatedAt: new Date(0),
-  }))
-}
-
 export default function ExamplesStudioMarquee() {
-  const [items, setItems] = useState<PreviousExample[]>([])
+  const [adminSamples, setAdminSamples] = useState<SampleCard[]>([])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -56,28 +39,24 @@ export default function ExamplesStudioMarquee() {
         const data = await response.json()
         if (!response.ok) {
           setFailed(true)
-          setItems(createFallbackItems())
+          setAdminSamples([])
           return
         }
-        const rows = ((data?.items || []) as PreviousExample[]).map((item) => ({
-          ...item,
-          assets: {
-            ...item.assets,
-            previewUrl: normalizeAssetUrl(item.assets?.previewUrl),
-            thumbUrl: normalizeAssetUrl(item.assets?.thumbUrl),
-            sourceUrl: normalizeAssetUrl(item.assets?.sourceUrl),
-          },
-        }))
+        const rows = ((data?.items || []) as PreviousExample[])
+          .map((item) => {
+            const imageUrl = normalizeAssetUrl(item.assets?.previewUrl || item.assets?.thumbUrl)
+            return {
+              id: item.id,
+              title: item.title || 'دعوة من أعمالنا السابقة',
+              imageUrl,
+            }
+          })
+          .filter((item) => Boolean(item.imageUrl))
 
-        if (!rows.length) {
-          setItems(createFallbackItems())
-          return
-        }
-
-        setItems(rows)
+        setAdminSamples(rows)
       } catch (error) {
         setFailed(true)
-        setItems(createFallbackItems())
+        setAdminSamples([])
         console.error('Failed loading examples studio:', error)
       } finally {
         window.clearTimeout(timeoutId)
@@ -94,18 +73,18 @@ export default function ExamplesStudioMarquee() {
 
   const minDisplayItems = 9
   const displayItems = useMemo(() => {
-    if (!items.length) return []
-    if (items.length >= minDisplayItems) {
-      return items.map((item, idx) => ({ ...item, carouselKey: `${item.id}-${idx}` }))
+    if (!adminSamples.length) return []
+    if (adminSamples.length >= minDisplayItems) {
+      return adminSamples.map((item, idx) => ({ ...item, carouselKey: `${item.id}-${idx}` }))
     }
     return Array.from({ length: minDisplayItems }).map((_, idx) => {
-      const source = items[idx % items.length]
+      const source = adminSamples[idx % adminSamples.length]
       return {
         ...source,
         carouselKey: `${source.id}-${idx}`,
       }
     })
-  }, [items])
+  }, [adminSamples])
 
   const updateActiveIndex = () => {
     const track = trackRef.current
@@ -145,24 +124,16 @@ export default function ExamplesStudioMarquee() {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 gap-3 rounded-[28px] border border-[rgba(150,160,190,0.18)] bg-white/75 p-4 shadow-[0_14px_34px_rgba(31,36,51,0.05)] backdrop-blur-2xl md:grid-cols-3 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, idx) => (
-          <div key={idx} className="animate-pulse overflow-hidden rounded-xl border border-white/80 bg-[#F4F6FF]">
-            <div className="aspect-[9/16] w-full bg-[#E8ECFA]" />
-            <div className="p-2">
-              <div className="mb-2 h-3 w-3/4 rounded bg-[#E0E5FA]" />
-              <div className="h-3 w-1/2 rounded bg-[#EFF2FF]" />
-            </div>
-          </div>
-        ))}
+      <div className="rounded-[28px] border border-[rgba(150,160,190,0.18)] bg-white/75 p-5 text-center text-sm text-[#7B8194] shadow-[0_14px_34px_rgba(31,36,51,0.05)] backdrop-blur-2xl">
+        جاري تحميل النماذج...
       </div>
     )
   }
 
-  if (!items.length) {
+  if (!displayItems.length) {
     return (
       <div className="rounded-[28px] border border-[rgba(150,160,190,0.18)] bg-white/75 p-4 text-sm text-[#7B8194] backdrop-blur-2xl">
-        {failed ? 'تعذر تحميل الأمثلة حاليًا. حاول التحديث بعد قليل.' : 'لا توجد أمثلة سابقة حالياً.'}
+        {failed ? 'لا توجد نماذج منشورة حاليًا' : 'لا توجد نماذج منشورة حاليًا'}
       </div>
     )
   }
@@ -218,17 +189,13 @@ export default function ExamplesStudioMarquee() {
               className={`group relative w-[220px] shrink-0 snap-center overflow-hidden rounded-2xl border border-[rgba(150,160,190,0.2)] bg-white/85 shadow-[0_12px_28px_rgba(31,36,51,0.08)] transition-all duration-300 md:w-[260px] ${scaleClass} ${opacityClass}`}
             >
               <div className={`aspect-[9/16] bg-[#F1F4FF] transition-all duration-300 ${blurClass}`}>
-                {item.assets?.previewUrl || item.assets?.thumbUrl ? (
-                  <img
-                    src={item.assets?.previewUrl || item.assets?.thumbUrl}
-                    alt={item.title}
-                    className="h-full w-full object-cover [image-rendering:auto]"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-xs text-[#7B8194]">بدون معاينة</div>
-                )}
+                <img
+                  src={item.imageUrl}
+                  alt={item.title}
+                  className="h-full w-full object-cover [image-rendering:auto]"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
               <div className="p-3 text-sm text-[#1F2433]">
                 <div className="truncate font-semibold">{item.title}</div>
