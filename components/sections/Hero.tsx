@@ -23,8 +23,9 @@ export default function Hero() {
   }, [])
 
   return (
-    <section className="pt-32 pb-20 px-4">
-      <div className="container mx-auto">
+    <section className="relative overflow-hidden px-4 pb-20 pt-32">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(124,108,255,0.12),transparent_32%),radial-gradient(circle_at_80%_30%,rgba(180,190,255,0.16),transparent_34%)]" />
+      <div className="container relative mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Text Content */}
           <motion.div
@@ -36,7 +37,7 @@ export default function Hero() {
               initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="inline-flex items-center gap-2 bg-primarySoft text-primary px-4 py-2 rounded-full mb-6"
+              className="mb-6 inline-flex items-center gap-2 rounded-full border border-[rgba(150,160,190,0.22)] bg-[rgba(255,255,255,0.72)] px-4 py-2 text-[#6D5DFB] backdrop-blur-xl"
             >
               <Sparkles size={18} />
               <span className="text-sm font-medium">منصة احترافية</span>
@@ -46,20 +47,19 @@ export default function Hero() {
               initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="text-5xl md:text-6xl font-bold mb-6 text-balance"
+              className="mb-6 text-5xl font-bold leading-[1.24] text-[#1F2433] md:text-6xl md:leading-[1.18]"
             >
-              أنشئ دعواتك الإلكترونية
-              <span className="text-primary block mt-2">خلال دقائق</span>
+              مناسبتك غالية..
+              <span className="mt-2 block">ودعوتك لازم تصير تُحفة</span>
             </motion.h1>
 
             <motion.p
               initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="text-xl text-muted mb-8 leading-relaxed"
+              className="mb-8 text-xl leading-relaxed text-[#7B8194]"
             >
-              منصة بشارة تساعدك على إنشاء دعوات زواج ومناسبات احترافية مع
-              QR فريد لكل ضيف، إدارة الحضور، وإرسال سهل عبر واتساب
+              أنشئ دعوتك، أرسلها، وتابع حضور ضيوفك بسهولة من مكان واحد.
             </motion.p>
 
             <motion.div
@@ -70,19 +70,16 @@ export default function Hero() {
             >
               <Link
                 href="/register"
-                className="bg-primary text-white px-8 py-4 rounded-lg font-semibold hover:bg-accent transition-colors flex items-center justify-center gap-2 group"
+                className="group flex items-center justify-center gap-2 rounded-xl px-8 py-4 font-semibold text-white shadow-[0_18px_45px_rgba(109,93,251,0.22)] transition-all duration-300 hover:-translate-y-0.5"
+                style={{
+                  background: 'linear-gradient(135deg, #7C6CFF, #5F6CFF)',
+                }}
               >
-                ابدأ مجاناً
+                ابدأ الآن
                 <ArrowLeft
                   size={20}
                   className="group-hover:-translate-x-1 transition-transform"
                 />
-              </Link>
-              <Link
-                href="/packages"
-                className="border-2 border-primary text-primary px-8 py-4 rounded-lg font-semibold hover:bg-primarySoft transition-colors"
-              >
-                عرض الباقات
               </Link>
             </motion.div>
           </motion.div>
@@ -94,9 +91,9 @@ export default function Hero() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="relative"
           >
-            <div className="bg-gradient-to-br from-primarySoft to-accent/20 rounded-3xl p-8 aspect-square flex items-center justify-center">
+            <div className="flex aspect-square items-center justify-center rounded-[30px] border border-[rgba(150,160,190,0.18)] bg-[rgba(255,255,255,0.72)] p-8 shadow-[0_24px_80px_rgba(31,36,51,0.08)] backdrop-blur-2xl">
               {heroImageUrl ? (
-                <div className="bg-white rounded-2xl p-3 shadow-2xl w-full max-w-md h-full max-h-[560px]">
+                <div className="h-full max-h-[560px] w-full max-w-md rounded-2xl border border-white/80 bg-white/80 p-3 shadow-[0_16px_44px_rgba(31,36,51,0.12)]">
                   <img
                     src={heroImageUrl}
                     alt="Hero preview"
@@ -104,16 +101,16 @@ export default function Hero() {
                   />
                 </div>
               ) : (
-                <div className="bg-white rounded-2xl p-8 shadow-2xl w-full max-w-md">
+                <div className="w-full max-w-md rounded-2xl border border-white/80 bg-white/80 p-8 shadow-[0_16px_44px_rgba(31,36,51,0.12)]">
                   <div className="space-y-4">
-                    <div className="h-4 bg-primary/20 rounded w-3/4"></div>
-                    <div className="h-4 bg-primary/10 rounded w-1/2"></div>
+                    <div className="h-4 w-3/4 rounded bg-[#6D5DFB]/20"></div>
+                    <div className="h-4 w-1/2 rounded bg-[#6D5DFB]/10"></div>
                     <div className="grid grid-cols-2 gap-4 mt-6">
-                      <div className="bg-primarySoft rounded-lg p-4 aspect-square flex items-center justify-center">
-                        <div className="w-24 h-24 bg-primary/20 rounded-lg"></div>
+                      <div className="flex aspect-square items-center justify-center rounded-lg bg-[#EEEAFE] p-4">
+                        <div className="h-24 w-24 rounded-lg bg-[#6D5DFB]/20"></div>
                       </div>
-                      <div className="bg-primarySoft rounded-lg p-4 aspect-square flex items-center justify-center">
-                        <div className="w-24 h-24 bg-accent/20 rounded-lg"></div>
+                      <div className="flex aspect-square items-center justify-center rounded-lg bg-[#EEEAFE] p-4">
+                        <div className="h-24 w-24 rounded-lg bg-[#5F6CFF]/20"></div>
                       </div>
                     </div>
                   </div>

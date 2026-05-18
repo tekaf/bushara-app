@@ -11,21 +11,28 @@ const OUTLINE_JSON_PATHS = ['/intro/weddingoutline.json', '/weddingoutline.json'
 const INTRO_LOGO_PATHS = ['/intro/logo-white.png', '/favicon.png']
 
 type Star = {
-  left: string
-  top: string
+  id: number
+  left: number
+  top: number
   size: number
+  opacity: number
+  blur: number
+  glow: number
   delay: number
   duration: number
 }
 
-type Meteor = {
-  right: string
-  bottom: string
-  delay: number
-  duration: number
+type ShootingStar = {
+  id: number
+  top: string
+  left: string
   width: number
-  opacity: number
-  peakHeight: number
+  height: number
+  angle: number
+  travelX: number
+  travelY: number
+  duration: number
+  delay: number
 }
 
 type FirstVisitIntroProps = {
@@ -39,26 +46,72 @@ export default function FirstVisitIntro({ forceShow = false }: FirstVisitIntroPr
   const outlineAnimationRef = useRef<HTMLDivElement | null>(null)
   const [outlineReady, setOutlineReady] = useState(false)
   const [logoIndex, setLogoIndex] = useState(0)
+  const [mounted, setMounted] = useState(false)
 
-  const stars = useMemo<Star[]>(
-    () =>
-      Array.from({ length: 110 }).map((_, i) => ({
-        left: `${(i * 37) % 100}%`,
-        top: `${(i * 53) % 100}%`,
-        size: 1.5 + (i % 4) * 0.8,
-        delay: (i % 10) * 0.22,
-        duration: 1.9 + (i % 6) * 0.38,
-      })),
-    []
-  )
-  const meteors = useMemo<Meteor[]>(
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const stars = useMemo<Star[]>(() => {
+    if (!mounted) return []
+    // Deterministic pseudo-random distribution avoids hydration mismatch.
+    let seed = 815743
+    const nextRand = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296
+      return seed / 4294967296
+    }
+
+    return Array.from({ length: 90 }, (_, id) => ({
+      id,
+      top: nextRand() * 100,
+      left: nextRand() * 100,
+      size: 1 + nextRand() * 3.5,
+      opacity: 0.25 + nextRand() * 0.75,
+      blur: nextRand() > 0.75 ? 6 : 0,
+      glow: 5 + nextRand() * 12,
+      duration: 2.5 + nextRand() * 4,
+      delay: nextRand() * 3,
+    }))
+  }, [mounted])
+
+  const shootingStars = useMemo<ShootingStar[]>(
     () => [
-      // Large meteor
-      { right: '8%', bottom: '-8%', delay: 0.25, duration: 2.4, width: 5, opacity: 0.95, peakHeight: 480 },
-      // Small meteor
-      { right: '44%', bottom: '-6%', delay: 1.35, duration: 1.9, width: 3, opacity: 0.82, peakHeight: 260 },
-      // Very small/far meteor
-      { right: '74%', bottom: '4%', delay: 2.45, duration: 1.6, width: 2, opacity: 0.65, peakHeight: 170 },
+      {
+        id: 1,
+        top: '18%',
+        left: '82%',
+        width: 120,
+        height: 2,
+        angle: 214,
+        travelX: -420,
+        travelY: 165,
+        duration: 11.5,
+        delay: 1.1,
+      },
+      {
+        id: 2,
+        top: '34%',
+        left: '70%',
+        width: 95,
+        height: 1.8,
+        angle: 224,
+        travelX: -350,
+        travelY: 140,
+        duration: 13.2,
+        delay: 5.4,
+      },
+      {
+        id: 3,
+        top: '12%',
+        left: '62%',
+        width: 145,
+        height: 2.2,
+        angle: 206,
+        travelX: -500,
+        travelY: 185,
+        duration: 15.4,
+        delay: 9.2,
+      },
     ],
     []
   )
@@ -148,48 +201,48 @@ export default function FirstVisitIntro({ forceShow = false }: FirstVisitIntroPr
 
   return (
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-gradient-to-b from-[#08122e] via-[#142a62] to-[#27125e] transition-opacity duration-500 ${
+      className={`fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-gradient-to-b from-[#0E1936] via-[#172B57] to-[#1C2451] transition-opacity duration-500 ${
         fadeOut ? 'opacity-0' : 'opacity-100'
       }`}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,.28),transparent_36%),radial-gradient(circle_at_85%_18%,rgba(145,210,255,.18),transparent_30%),radial-gradient(circle_at_50%_78%,rgba(186,113,255,.18),transparent_36%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(255,255,255,.24),transparent_34%),radial-gradient(circle_at_85%_18%,rgba(165,195,255,.2),transparent_30%),radial-gradient(circle_at_55%_78%,rgba(129,115,255,.2),transparent_38%)]" />
 
-      {stars.map((star, idx) => (
+      {stars.map((star) => (
         <span
-          key={idx}
-          className="absolute rounded-full bg-white star-float"
+          key={star.id}
+          className="animate-twinkle absolute rounded-full bg-white"
           style={{
-            left: star.left,
-            top: star.top,
-            width: `${star.size}px`,
-            height: `${star.size}px`,
-            animationDelay: `${star.delay}s`,
+            top: `${star.top}%`,
+            left: `${star.left}%`,
+            width: star.size,
+            height: star.size,
+            opacity: star.opacity,
+            filter: `blur(${star.blur}px)`,
             animationDuration: `${star.duration}s`,
-            boxShadow: '0 0 10px rgba(255,255,255,0.95), 0 0 22px rgba(180,210,255,0.65)',
+            animationDelay: `${star.delay}s`,
+            boxShadow: `0 0 ${star.glow}px rgba(255,255,255,0.65)`,
           }}
         />
       ))}
 
-      {meteors.map((meteor, idx) => (
+      {shootingStars.map((shootingStar) => (
         <span
-          key={`meteor-${idx}`}
+          key={shootingStar.id}
           aria-hidden
-          className="absolute meteor-shoot"
+          className="shooting-star"
           style={{
-            right: meteor.right,
-            bottom: meteor.bottom,
-            width: `${meteor.width}px`,
-            opacity: meteor.opacity,
-            ['--meteor-delay' as any]: `${meteor.delay}s`,
-            ['--meteor-duration' as any]: `${meteor.duration}s`,
-            ['--meteor-peak' as any]: `${meteor.peakHeight}px`,
+            top: shootingStar.top,
+            left: shootingStar.left,
+            width: `${shootingStar.width}px`,
+            height: `${shootingStar.height}px`,
+            ['--shoot-angle' as any]: `${shootingStar.angle}deg`,
+            ['--shoot-x' as any]: `${shootingStar.travelX}px`,
+            ['--shoot-y' as any]: `${shootingStar.travelY}px`,
+            animationDuration: `${shootingStar.duration}s`,
+            animationDelay: `${shootingStar.delay}s`,
           }}
         />
       ))}
-
-      <div className="rocket-wrap" aria-hidden>
-        <span className="rocket">🚀</span>
-      </div>
 
       <div
         ref={outlineAnimationRef}
@@ -219,58 +272,42 @@ export default function FirstVisitIntro({ forceShow = false }: FirstVisitIntroPr
       </div>
 
       <style jsx>{`
-        .star-float {
-          animation-name: starTwinkle, starDrift;
-          animation-timing-function: ease-in-out, linear;
-          animation-iteration-count: infinite, infinite;
-        }
-
-        .meteor-shoot {
-          height: 8px;
-          border-top-left-radius: 999px;
-          border-top-right-radius: 999px;
-          background: linear-gradient(to top, rgba(255, 255, 255, 0), rgba(255, 255, 255, 1));
-          filter: drop-shadow(0 0 10px rgba(180, 230, 255, 0.95));
-          transform: rotate(-45deg);
-          transform-origin: bottom center;
-          animation-name: animShootingStar;
-          animation-duration: var(--meteor-duration);
-          animation-delay: var(--meteor-delay);
-          animation-timing-function: linear;
-          animation-iteration-count: 1;
-          animation-fill-mode: both;
-          z-index: 6;
-        }
-
-        .rocket-wrap {
-          position: absolute;
-          left: -10%;
-          top: 58%;
-          width: 120%;
-          animation: rocketFlight 4.2s ease-in-out infinite;
-          pointer-events: none;
-        }
-
-        .rocket {
-          position: absolute;
-          font-size: 36px;
-          filter: drop-shadow(0 6px 16px rgba(11, 43, 95, 0.4));
-        }
-
-        .rocket::after {
-          content: '';
-          position: absolute;
-          left: -30px;
-          top: 50%;
-          width: 26px;
-          height: 3px;
-          transform: translateY(-50%);
-          background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.9));
-          border-radius: 999px;
+        .animate-twinkle {
+          animation-name: twinkle;
+          animation-timing-function: ease-in-out;
+          animation-iteration-count: infinite;
         }
 
         .animate-logo-in {
           animation: logoEnter 1.2s ease-out both;
+        }
+
+        .shooting-star {
+          position: absolute;
+          z-index: 4;
+          border-radius: 999px;
+          background: linear-gradient(90deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0));
+          filter: blur(0.4px);
+          box-shadow: 0 0 12px rgba(255, 255, 255, 0.85);
+          transform-origin: left center;
+          transform: translateX(0) translateY(0) rotate(var(--shoot-angle));
+          opacity: 0;
+          animation-name: shootingStar;
+          animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+          animation-iteration-count: infinite;
+        }
+
+        .shooting-star::after {
+          content: '';
+          position: absolute;
+          left: -2px;
+          top: 50%;
+          width: 6px;
+          height: 6px;
+          border-radius: 999px;
+          transform: translateY(-50%);
+          background: rgba(255, 255, 255, 0.95);
+          box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
         }
 
         .animate-slogan-in {
@@ -278,63 +315,35 @@ export default function FirstVisitIntro({ forceShow = false }: FirstVisitIntroPr
           animation-delay: 0.5s;
         }
 
-        @keyframes starTwinkle {
+        @keyframes twinkle {
           0%,
           100% {
-            opacity: 0.25;
-            transform: scale(1);
+            transform: scale(0.85);
+            opacity: 0.35;
           }
           50% {
+            transform: scale(1.25);
             opacity: 1;
-            transform: scale(1.4);
           }
         }
 
-        @keyframes starDrift {
+        @keyframes shootingStar {
           0% {
-            transform: translateY(0px);
-          }
-          50% {
-            transform: translateY(-10px);
-          }
-          100% {
-            transform: translateY(0px);
-          }
-        }
-
-        @keyframes animShootingStar {
-          0% {
-            transform: translateY(0px) translateX(0px) rotate(-45deg);
-            opacity: 0;
-            height: 8px;
-          }
-          12% {
-            opacity: 1;
-          }
-          55% {
-            opacity: 1;
-            height: var(--meteor-peak);
-          }
-          100% {
-            opacity: 0;
-            height: calc(var(--meteor-peak) * 1.6);
-            transform: translateY(-170vh) translateX(-170vw) rotate(-45deg);
-          }
-        }
-
-        @keyframes rocketFlight {
-          0% {
-            transform: translate3d(0%, 32px, 0) rotate(-8deg);
+            transform: translateX(0) translateY(0) rotate(var(--shoot-angle));
             opacity: 0;
           }
-          10% {
-            opacity: 1;
+          8% {
+            opacity: 0.95;
           }
-          50% {
-            transform: translate3d(52%, -20px, 0) rotate(-10deg);
+          16% {
+            opacity: 0.95;
+          }
+          24% {
+            transform: translateX(var(--shoot-x)) translateY(var(--shoot-y)) rotate(var(--shoot-angle));
+            opacity: 0;
           }
           100% {
-            transform: translate3d(100%, -90px, 0) rotate(-12deg);
+            transform: translateX(var(--shoot-x)) translateY(var(--shoot-y)) rotate(var(--shoot-angle));
             opacity: 0;
           }
         }

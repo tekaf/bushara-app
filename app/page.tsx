@@ -2,10 +2,10 @@ import Hero from '@/components/sections/Hero'
 import Features from '@/components/sections/Features'
 import PackagesPreview from '@/components/sections/PackagesPreview'
 import CTA from '@/components/sections/CTA'
+import FAQSection from '@/components/sections/FAQSection'
 import Navbar from '@/components/ui/Navbar'
 import Footer from '@/components/ui/Footer'
 import FirstVisitIntro from '@/components/ui/FirstVisitIntro'
-import Link from 'next/link'
 import ExamplesStudioMarquee from '@/components/sections/ExamplesStudioMarquee'
 import HomePreviousInviteSample from '@/components/sections/HomePreviousInviteSample'
 
@@ -14,16 +14,17 @@ const EHSAN_FAST_DONATION_URL =
 
 export default function Home() {
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen bg-[#F8FAFF] text-[#1F2433]">
       <FirstVisitIntro />
       <Navbar />
       <Hero />
       <Features />
 
-      <section className="py-14 px-4 bg-white">
-        <div className="container mx-auto">
-          <h2 className="mb-4 text-3xl font-bold">نماذج من أعمالنا</h2>
-          <p className="mb-6 text-muted">تصفح مجموعة مختارة من دعوات تم تنفيذها لعملائنا.</p>
+      <section className="relative overflow-hidden bg-[#F8FAFF] px-4 py-16">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(124,108,255,0.1),transparent_32%),radial-gradient(circle_at_80%_30%,rgba(180,190,255,0.14),transparent_34%)]" />
+        <div className="container relative mx-auto">
+          <h2 className="mb-4 text-3xl font-bold text-[#1F2433]">نماذج من أعمالنا</h2>
+          <p className="mb-6 text-[#7B8194]">تصفح مجموعة مختارة من الدعوات المنفذة.</p>
           <ExamplesStudioMarquee />
         </div>
       </section>
@@ -31,34 +32,40 @@ export default function Home() {
       <PackagesPreview />
       <CTA />
 
-      <section className="py-16 px-4 bg-bg">
-        <div className="container mx-auto grid grid-cols-1 gap-6 md:grid-cols-2">
-          <div className="rounded-2xl bg-white p-6 shadow-sm">
-            <h3 className="mb-3 text-2xl font-bold">تواصل معنا</h3>
-            <p className="text-muted mb-2">دعم فني سريع لجميع استفساراتك</p>
-            <p className="text-muted">واتساب: 0000000000</p>
-            <p className="text-muted">البريد: support@bushara.app</p>
-            <Link href="/packages" className="mt-4 inline-block text-primary font-semibold">
-              ابدأ الآن
-            </Link>
+      <section className="relative overflow-hidden bg-[#F6F7FB] px-4 py-16">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_12%,rgba(124,108,255,0.1),transparent_34%),radial-gradient(circle_at_88%_30%,rgba(176,188,255,0.12),transparent_36%)]" />
+        <div className="container relative mx-auto grid grid-cols-1 items-center gap-6 md:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-[28px] border border-[rgba(150,160,190,0.18)] bg-white/72 p-8 shadow-[0_24px_80px_rgba(31,36,51,0.08)] backdrop-blur-2xl">
+            <h3 className="mb-3 text-3xl font-bold text-[#1F2433]">تواصل معنا</h3>
+            <p className="mb-2 text-lg text-[#7B8194]">للدعم الفني والاستفسارات</p>
+            <p className="mb-6 text-[#7B8194]">busharh.sa@gmail.com</p>
+            <a
+              href="mailto:busharh.sa@gmail.com"
+              className="inline-flex rounded-xl px-6 py-3 font-semibold text-white shadow-[0_18px_45px_rgba(109,93,251,0.22)] transition-all duration-300 hover:-translate-y-0.5"
+              style={{ background: 'linear-gradient(135deg, #7C6CFF, #5F6CFF)' }}
+            >
+              راسلنا عبر البريد
+            </a>
           </div>
-          <HomePreviousInviteSample />
+          <div className="mx-auto w-full max-w-[280px] md:max-w-[320px]">
+            <HomePreviousInviteSample />
+          </div>
         </div>
       </section>
 
-      <section className="px-4 pb-12 bg-bg">
+      <section className="bg-[#F6F7FB] px-4 pb-12">
         <div className="container mx-auto">
-          <div className="mx-auto w-full rounded-[30px] border border-[#b9dec8]/80 bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.8),transparent_38%),radial-gradient(circle_at_90%_30%,rgba(214,247,226,0.85),transparent_40%),linear-gradient(135deg,#f6fff9_0%,#e9f8ef_48%,#def2e6_100%)] p-6 shadow-[0_16px_38px_rgba(45,110,80,0.16)] md:p-10">
+          <div className="mx-auto w-full rounded-[28px] border border-[#BFE3D2] bg-[rgba(236,253,245,0.75)] p-6 shadow-[0_12px_30px_rgba(29,78,63,0.08)] backdrop-blur-xl md:p-10">
             <div dir="ltr" className="flex flex-col gap-6 md:flex-row md:items-center">
-              <div className="md:w-40 md:border-r md:border-[#bfd9c9] md:pr-6">
-                <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-2xl bg-white/95 p-3 shadow-[0_10px_24px_rgba(53,116,86,0.14)] md:mx-0">
+              <div className="md:w-36 md:border-r md:border-[#CBE9DA] md:pr-6">
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl border border-white/80 bg-white/80 p-3 shadow-[0_8px_20px_rgba(31,36,51,0.06)] md:mx-0">
                   <img src="/ehsan-logo.png" alt="Ehsan" className="h-full w-full object-contain" />
                 </div>
               </div>
 
               <div dir="rtl" className="flex-1 text-center md:text-right">
-                <h3 className="mb-2 text-2xl font-bold text-[#1f5b3f] md:text-[30px]">بشّر وأسعد غيرك</h3>
-                <p className="mb-5 text-sm text-[#3e6b53] md:text-base">
+                <h3 className="mb-2 text-2xl font-bold text-[#1F5B3F] md:text-[28px]">بشّر وأسعد غيرك</h3>
+                <p className="mb-5 text-sm text-[#3E6B53] md:text-base">
                   اجعل لفرحتك أثرًا يدوم عبر منصة إحسان
                 </p>
 
@@ -67,7 +74,7 @@ export default function Home() {
                     href={EHSAN_FAST_DONATION_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded-xl border border-[#8dc2a5] bg-white/90 px-4 py-2.5 text-sm font-semibold text-[#245c42] shadow-[0_6px_16px_rgba(58,118,87,0.14)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_22px_rgba(58,118,87,0.2)]"
+                    className="rounded-xl border border-[#B9DDCB] bg-white/85 px-4 py-2.5 text-sm font-semibold text-[#245C42] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white"
                   >
                     10 ر.س
                   </a>
@@ -75,7 +82,7 @@ export default function Home() {
                     href={EHSAN_FAST_DONATION_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded-xl border border-[#4f8e6b] bg-[#2f6f4e] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(47,111,78,0.32)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#285f42] hover:shadow-[0_12px_24px_rgba(47,111,78,0.38)]"
+                    className="rounded-xl border border-[#8EBFA7] bg-[#2F6F4E]/90 px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#2B6247]"
                   >
                     50 ر.س
                   </a>
@@ -83,7 +90,7 @@ export default function Home() {
                     href={EHSAN_FAST_DONATION_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded-xl border border-[#8dc2a5] bg-white/90 px-4 py-2.5 text-sm font-semibold text-[#245c42] shadow-[0_6px_16px_rgba(58,118,87,0.14)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_22px_rgba(58,118,87,0.2)]"
+                    className="rounded-xl border border-[#B9DDCB] bg-white/85 px-4 py-2.5 text-sm font-semibold text-[#245C42] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white"
                   >
                     100 ر.س
                   </a>
@@ -91,12 +98,13 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <p className="mt-3 text-center text-xs text-[#8f998f]">سيتم تحويلك إلى منصة إحسان لإكمال التبرع</p>
+          <p className="mt-3 text-center text-xs text-[#8AA294]">سيتم تحويلك إلى منصة إحسان لإكمال التبرع</p>
         </div>
       </section>
+
+      <FAQSection />
 
       <Footer />
     </main>
   )
 }
-

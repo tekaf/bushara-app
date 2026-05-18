@@ -18,9 +18,9 @@ export default function HomePreviousInviteSample() {
         const data = await response.json().catch(() => ({}))
         if (!response.ok) return
         const rows = (data?.items || []) as PreviousExample[]
-        const firstWithPreview = rows.find((item) => item.assets?.thumbUrl || item.assets?.previewUrl)
+        const firstWithPreview = rows.find((item) => item.assets?.previewUrl || item.assets?.thumbUrl)
         if (firstWithPreview) {
-          setImageUrl(firstWithPreview.assets.thumbUrl || firstWithPreview.assets.previewUrl)
+          setImageUrl(firstWithPreview.assets.previewUrl || firstWithPreview.assets.thumbUrl)
           setTitle(firstWithPreview.title || 'نموذج دعوة سابقة')
         }
       } catch (error) {
@@ -39,17 +39,17 @@ export default function HomePreviousInviteSample() {
   }, [])
 
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm">
-      <div className="mb-2 text-sm text-muted">{title}</div>
-      <div className="aspect-[9/16] overflow-hidden rounded-xl bg-bg">
+    <div className="rounded-[24px] border border-[rgba(150,160,190,0.18)] bg-white/75 p-4 shadow-[0_14px_32px_rgba(31,36,51,0.06)] backdrop-blur-2xl">
+      <div className="mb-2 text-sm text-[#7B8194]">{title}</div>
+      <div className="aspect-[9/16] overflow-hidden rounded-xl bg-[#EFF2FF]">
         {loading ? (
-          <div className="flex h-full w-full items-center justify-center text-sm text-muted">
+          <div className="flex h-full w-full items-center justify-center text-sm text-[#7B8194]">
             جاري التحميل...
           </div>
         ) : imageUrl ? (
-          <img src={imageUrl} alt="Previous invite sample" className="h-full w-full object-contain" />
+          <img src={imageUrl} alt="Previous invite sample" className="h-full w-full object-cover [image-rendering:auto]" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-sm text-muted">
+          <div className="flex h-full w-full items-center justify-center text-sm text-[#7B8194]">
             لا توجد أمثلة سابقة حالياً.
           </div>
         )}

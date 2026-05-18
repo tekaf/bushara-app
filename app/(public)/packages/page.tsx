@@ -272,7 +272,7 @@ function PackagesPageContent() {
   return (
     <>
       <Navbar />
-      <main className="pt-32 pb-20 px-4 min-h-screen bg-gradient-to-b from-purple-50/60 via-white to-white">
+      <main className="min-h-screen bg-gradient-to-b from-[#F8FAFF] via-[#F6F7FB] to-[#F8FAFF] px-4 pb-20 pt-32">
         <div className="container mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -294,7 +294,7 @@ function PackagesPageContent() {
           </motion.div>
 
           <div className="mb-8 flex justify-center">
-            <label className="inline-flex cursor-pointer items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium shadow-sm">
+            <label className="inline-flex cursor-pointer items-center gap-3 rounded-xl border border-[rgba(150,160,190,0.2)] bg-white/80 px-4 py-3 text-sm font-medium shadow-[0_8px_24px_rgba(31,36,51,0.05)] backdrop-blur-xl">
               <input
                 type="checkbox"
                 className="h-4 w-4 accent-primary"
@@ -310,7 +310,7 @@ function PackagesPageContent() {
               Array.from({ length: 6 }).map((_, index) => (
                 <div
                   key={`sk-${index}`}
-                  className="rounded-3xl border border-gray-200 bg-white p-8 shadow-sm animate-pulse"
+                  className="animate-pulse rounded-3xl border border-[rgba(150,160,190,0.2)] bg-white/75 p-8 shadow-[0_12px_32px_rgba(31,36,51,0.05)] backdrop-blur-xl"
                 >
                   <div className="h-8 w-24 rounded bg-gray-200 mb-4 mx-auto" />
                   <div className="h-10 w-40 rounded bg-gray-200 mb-3 mx-auto" />
@@ -336,14 +336,14 @@ function PackagesPageContent() {
                     initial={{ opacity: 0, y: 24 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.07 }}
-                    whileHover={{ y: -8, scale: 1.01 }}
-                    className={`relative rounded-3xl bg-white p-8 border-2 transition-all duration-300 ${
+                    whileHover={{ y: -4, scale: 1.01 }}
+                    className={`relative rounded-3xl border p-8 backdrop-blur-xl transition-all duration-300 ${
                       isFeatured
-                        ? 'border-primary shadow-xl lg:order-2'
+                        ? 'border-primary/35 bg-white/82 shadow-[0_18px_46px_rgba(31,36,51,0.1)] lg:order-2'
                         : isSelected
-                        ? 'border-primary/60 shadow-lg'
-                        : 'border-gray-200 shadow-sm'
-                    } ${isFeatured ? 'before:absolute before:inset-0 before:rounded-3xl before:bg-primary/5 before:blur-xl before:-z-10' : ''}`}
+                        ? 'border-primary/45 bg-white/80 shadow-[0_16px_40px_rgba(31,36,51,0.08)]'
+                        : 'border-[rgba(150,160,190,0.2)] bg-white/75 shadow-[0_12px_34px_rgba(31,36,51,0.06)]'
+                    }`}
                   >
                     <div className="absolute top-4 left-4 rounded-full bg-primary text-white px-3 py-1 text-xs font-bold">
                       خصم {LAUNCH_DISCOUNT_PERCENT}%
@@ -375,30 +375,38 @@ function PackagesPageContent() {
                       </div>
                     </div>
 
-                    <ul className="space-y-3 mb-8 text-sm">
+                    <ul className="mb-8 space-y-3 text-sm">
                       <li className="flex items-center gap-2">
                         <Check className="text-primary flex-shrink-0" size={18} />
-                        <span>QR فريد لكل ضيف</span>
+                        <span>إرسال عبر واتساب</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <Check className="text-primary flex-shrink-0" size={18} />
-                        <span>إرسال واتساب سريع</span>
+                        <span>إدارة الحضور</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <Check className="text-primary flex-shrink-0" size={18} />
-                        <span>إدارة حضور لحظية</span>
+                        <span>دعم فني</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="text-primary flex-shrink-0" size={18} />
+                        <span>رابط خاص للدعوة</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="text-primary flex-shrink-0" size={18} />
+                        <span>تحديث بيانات المدعوين</span>
                       </li>
                     </ul>
 
                     <button
                       type="button"
                       onClick={() => handleChoosePackage(pkg.guests, pkg.paidPrice)}
-                      className={`block w-full text-center py-3 rounded-xl font-semibold transition-all ${
+                      className={`block w-full rounded-xl py-3 text-center font-semibold transition-all ${
                         isSelected
-                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                          ? 'bg-[#5F6CFF] text-white'
                           : isFeatured
-                          ? 'bg-primary text-white hover:bg-accent shadow-md'
-                          : 'bg-primarySoft text-primary hover:bg-primary/10'
+                          ? 'bg-gradient-to-br from-[#7C6CFF] to-[#5F6CFF] text-white shadow-[0_16px_34px_rgba(109,93,251,0.2)] hover:-translate-y-0.5'
+                          : 'bg-[#EEEAFE] text-primary hover:bg-[#E5E0FF]'
                       }`}
                     >
                       {isSelected ? 'متابعة الدفع' : 'اختر الباقة'}

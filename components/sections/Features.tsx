@@ -1,61 +1,62 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { QrCode, Users, Send, Shield, Smartphone, Zap } from 'lucide-react'
+import { BadgeDollarSign, Users, Send, CalendarClock, RefreshCcw, Zap } from 'lucide-react'
 
 const features = [
   {
-    icon: QrCode,
-    title: 'QR فريد لكل ضيف',
-    description: 'كل ضيف يحصل على QR code فريد يمكن مسحه عند الدخول',
+    icon: Users,
+    title: 'إدارة المدعوين بسهولة',
+    description: 'أضف وعدّل بيانات المدعوين بسهولة.',
   },
   {
-    icon: Users,
-    title: 'إدارة الضيوف بسهولة',
-    description: 'أضف وعدّل بيانات ضيوفك بكل سهولة مع إمكانية تحديد عدد المدعوين',
+    icon: CalendarClock,
+    title: 'إرسال مجدول للدعوات',
+    description: 'حدد يوم الإرسال، ودع الباقي علينا.',
   },
   {
     icon: Send,
     title: 'إرسال عبر واتساب',
-    description: 'أرسل دعواتك مباشرة عبر واتساب أو رابط مباشر',
+    description: 'نرسل دعواتك عبر واتساب بسهولة.',
   },
   {
-    icon: Shield,
-    title: 'آمن ومحمي',
-    description: 'بياناتك محمية بأحدث تقنيات الأمان',
-  },
-  {
-    icon: Smartphone,
-    title: 'متوافق مع جميع الأجهزة',
-    description: 'يعمل على جميع الأجهزة والأنظمة',
+    icon: RefreshCcw,
+    title: 'دعوات بديلة ذكية',
+    description: 'استبدل الدعوات المعتذر عنها بمرونة.',
   },
   {
     icon: Zap,
-    title: 'سهل وسريع',
-    description: 'أنشئ دعوتك خلال دقائق بدون تعقيد',
+    title: 'تصميم سريع ومرتب',
+    description: 'جهّز دعوتك بخطوات واضحة.',
+  },
+  {
+    icon: BadgeDollarSign,
+    title: 'سعر مناسب وجودة عالية',
+    description: 'دعوات أنيقة بتكلفة أقل.',
   },
 ]
 
 export default function Features() {
   return (
-    <section className="py-20 px-4 bg-white">
+    <section className="relative overflow-hidden bg-[#F8FAFF] px-4 py-20">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_0%,rgba(124,108,255,0.09),transparent_35%),radial-gradient(circle_at_10%_30%,rgba(180,190,255,0.14),transparent_40%)]" />
       <div className="container mx-auto">
         <motion.div
           initial={false}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-16"
+          className="relative mb-16 text-center"
         >
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+          <h2 className="mb-4 text-4xl font-bold text-[#1F2433] md:text-5xl">
             مميزات منصة بشارة
           </h2>
-          <p className="text-xl text-muted max-w-2xl mx-auto">
+          <p className="mx-auto max-w-2xl text-xl text-[#7B8194]">
             كل ما تحتاجه لإنشاء دعوة احترافية في مكان واحد
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="relative grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {features.map((feature, index) => (
             <motion.div
               key={feature.title}
@@ -63,13 +64,13 @@ export default function Features() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
-              className="bg-bg p-8 rounded-2xl hover:shadow-lg transition-shadow"
+              className="rounded-[28px] border border-[rgba(150,160,190,0.18)] bg-[rgba(255,255,255,0.72)] p-7 shadow-[0_16px_40px_rgba(31,36,51,0.06)] backdrop-blur-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_42px_rgba(31,36,51,0.08)]"
             >
-              <div className="bg-primarySoft w-16 h-16 rounded-xl flex items-center justify-center mb-6">
-                <feature.icon className="text-primary" size={32} />
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-white/80 bg-[#F4F6FF]/90">
+                <feature.icon className="text-[#6D5DFB]" size={26} />
               </div>
-              <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
-              <p className="text-muted leading-relaxed">
+              <h3 className="mb-2 text-xl font-semibold text-[#1F2433]">{feature.title}</h3>
+              <p className="leading-7 text-[#7B8194]">
                 {feature.description}
               </p>
             </motion.div>
