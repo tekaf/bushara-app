@@ -3,6 +3,37 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PreviousExample } from '@/lib/firebase/types'
 
+const FALLBACK_SAMPLE_URLS = [
+  '/home/samples/sample-1.svg',
+  '/home/samples/sample-2.svg',
+  '/home/samples/sample-3.svg',
+]
+
+function normalizeAssetUrl(value?: string): string {
+  if (!value) return ''
+  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')) {
+    return value
+  }
+  return `/${value}`
+}
+
+function createFallbackItems(): PreviousExample[] {
+  return FALLBACK_SAMPLE_URLS.map((url, idx) => ({
+    id: `fallback-${idx + 1}`,
+    title: `نموذج ${idx + 1}`,
+    sortOrder: idx + 1,
+    status: 'published',
+    sourceType: 'image',
+    assets: {
+      sourceUrl: url,
+      previewUrl: url,
+      thumbUrl: url,
+    },
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+  }))
+}
+
 export default function ExamplesStudioMarquee() {
   const [items, setItems] = useState<PreviousExample[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,12 +56,28 @@ export default function ExamplesStudioMarquee() {
         const data = await response.json()
         if (!response.ok) {
           setFailed(true)
+          setItems(createFallbackItems())
           return
         }
-        const rows = (data?.items || []) as PreviousExample[]
+        const rows = ((data?.items || []) as PreviousExample[]).map((item) => ({
+          ...item,
+          assets: {
+            ...item.assets,
+            previewUrl: normalizeAssetUrl(item.assets?.previewUrl),
+            thumbUrl: normalizeAssetUrl(item.assets?.thumbUrl),
+            sourceUrl: normalizeAssetUrl(item.assets?.sourceUrl),
+          },
+        }))
+
+        if (!rows.length) {
+          setItems(createFallbackItems())
+          return
+        }
+
         setItems(rows)
       } catch (error) {
         setFailed(true)
+        setItems(createFallbackItems())
         console.error('Failed loading examples studio:', error)
       } finally {
         window.clearTimeout(timeoutId)

@@ -49,12 +49,12 @@ export default function Footer() {
             <h4 className="mb-4 text-2xl font-semibold text-[rgba(255,255,255,0.96)]">الدعم</h4>
             <ul className="space-y-3.5 text-lg text-[rgba(255,255,255,0.78)]">
               <li>
-                <Link href="/faq" className="transition-colors duration-200 hover:text-white">
+                <Link href="/#faq" className="transition-colors duration-200 hover:text-white">
                   الأسئلة الشائعة
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="transition-colors duration-200 hover:text-white">
+                <Link href="/#contact" className="transition-colors duration-200 hover:text-white">
                   تواصل معنا
                 </Link>
               </li>

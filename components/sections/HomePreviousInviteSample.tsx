@@ -3,8 +3,18 @@
 import { useEffect, useState } from 'react'
 import type { PreviousExample } from '@/lib/firebase/types'
 
+const FALLBACK_CONTACT_PREVIEW = '/home/samples/contact-preview.svg'
+
+function normalizeAssetUrl(value?: string): string {
+  if (!value) return ''
+  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')) {
+    return value
+  }
+  return `/${value}`
+}
+
 export default function HomePreviousInviteSample() {
-  const [imageUrl, setImageUrl] = useState('')
+  const [imageUrl, setImageUrl] = useState(FALLBACK_CONTACT_PREVIEW)
   const [title, setTitle] = useState('نموذج دعوة سابقة')
   const [loading, setLoading] = useState(true)
 
@@ -20,7 +30,9 @@ export default function HomePreviousInviteSample() {
         const rows = (data?.items || []) as PreviousExample[]
         const firstWithPreview = rows.find((item) => item.assets?.previewUrl || item.assets?.thumbUrl)
         if (firstWithPreview) {
-          const previewUrl = firstWithPreview.assets?.previewUrl || firstWithPreview.assets?.thumbUrl || ''
+          const previewUrl = normalizeAssetUrl(
+            firstWithPreview.assets?.previewUrl || firstWithPreview.assets?.thumbUrl
+          )
           setImageUrl(previewUrl)
           setTitle(firstWithPreview.title || 'نموذج دعوة سابقة')
         }

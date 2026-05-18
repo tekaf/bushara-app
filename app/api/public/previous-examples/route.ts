@@ -8,6 +8,7 @@ export const revalidate = 0
 type PreviousExampleRow = {
   id: string
   title: string
+  sortOrder?: number
   assets?: {
     sourceUrl?: string
     previewUrl?: string
@@ -20,6 +21,7 @@ export async function GET() {
   try {
     const adminDb = getAdminFirestore()
     if (!adminDb) {
+      console.error('❌ [API][PUBLIC][PREVIOUS_EXAMPLES] admin firestore unavailable')
       return NextResponse.json({ items: [] })
     }
 
@@ -34,11 +36,33 @@ export async function GET() {
         return {
           id: doc.id,
           title: data?.title || 'دعوة سابقة',
+          sortOrder: Number.isFinite(Number(data?.sortOrder)) ? Number(data.sortOrder) : 9999,
           assets: data?.assets || {},
           createdAt: data?.createdAt?.toMillis?.() || 0,
         }
       })
-      .sort((a, b) => b.createdAt! - a.createdAt!)
+      .sort((a, b) => {
+        const orderA = Number.isFinite(a.sortOrder) ? Number(a.sortOrder) : 9999
+        const orderB = Number.isFinite(b.sortOrder) ? Number(b.sortOrder) : 9999
+        if (orderA !== orderB) return orderA - orderB
+        return (b.createdAt || 0) - (a.createdAt || 0)
+      })
+
+    const diagnostics = rows.map((row) => {
+      const previewUrl = row.assets?.previewUrl || row.assets?.thumbUrl || ''
+      return {
+        id: row.id,
+        title: row.title,
+        previewUrl,
+        startsWithHttp: previewUrl.startsWith('http://') || previewUrl.startsWith('https://'),
+        startsWithSlash: previewUrl.startsWith('/'),
+      }
+    })
+
+    console.log('✅ [API][PUBLIC][PREVIOUS_EXAMPLES] fetched:', {
+      count: rows.length,
+      diagnostics,
+    })
 
     return NextResponse.json({ items: rows })
   } catch (error: any) {
