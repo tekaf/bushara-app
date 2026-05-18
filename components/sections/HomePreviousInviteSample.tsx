@@ -20,7 +20,8 @@ export default function HomePreviousInviteSample() {
         const rows = (data?.items || []) as PreviousExample[]
         const firstWithPreview = rows.find((item) => item.assets?.previewUrl || item.assets?.thumbUrl)
         if (firstWithPreview) {
-          setImageUrl(firstWithPreview.assets.previewUrl || firstWithPreview.assets.thumbUrl)
+          const previewUrl = firstWithPreview.assets?.previewUrl || firstWithPreview.assets?.thumbUrl || ''
+          setImageUrl(previewUrl)
           setTitle(firstWithPreview.title || 'نموذج دعوة سابقة')
         }
       } catch (error) {
