@@ -3,8 +3,14 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-bg text-textDark;
+    overflow-x: hidden;
   }
 }
 

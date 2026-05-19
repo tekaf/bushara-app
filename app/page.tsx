@@ -25,7 +25,7 @@ export default function Home() {
       <PackagesPreview />
       <CTA />
 
-      <section id="contact" className="relative overflow-hidden bg-[#F6F7FB] px-4 py-16">
+      <section id="contact" className="relative overflow-hidden bg-[#F6F7FB] px-4 py-14 sm:py-20 lg:py-24">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_12%,rgba(124,108,255,0.1),transparent_34%),radial-gradient(circle_at_88%_30%,rgba(176,188,255,0.12),transparent_36%)]" />
         <div className="container relative mx-auto grid grid-cols-1 items-center gap-6 md:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-[28px] border border-[rgba(150,160,190,0.18)] bg-white/72 p-8 shadow-[0_24px_80px_rgba(31,36,51,0.08)] backdrop-blur-2xl">

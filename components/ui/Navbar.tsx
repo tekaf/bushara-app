@@ -37,8 +37,11 @@ export default function Navbar() {
       }}
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent" />
-      <div className="mx-auto flex h-28 max-w-7xl items-center justify-between px-6 lg:px-10">
-        <nav className="hidden md:flex items-center gap-8 text-[17px] font-medium text-slate-700">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:h-24 sm:px-6 lg:px-8">
+        <nav className="hidden md:flex items-center gap-7 text-base font-medium text-slate-700">
+          <Link href="/" className="transition hover:text-slate-900">
+            الرئيسية
+          </Link>
           <Link href="/packages" className="transition hover:text-slate-900">
             الباقات
           </Link>
@@ -57,13 +60,13 @@ export default function Navbar() {
             onError={(event) => {
               event.currentTarget.src = '/icon.png'
             }}
-            className="h-28 w-28 object-contain opacity-100 drop-shadow-[0_0_14px_rgba(74,66,118,0.42)]"
+            className="h-16 w-16 object-contain opacity-100 drop-shadow-[0_0_14px_rgba(74,66,118,0.42)] sm:h-24 sm:w-24"
           />
         </Link>
 
         <Link
           href={user ? '/occasions' : '/register'}
-          className="hidden md:inline-flex rounded-2xl border border-white/20 bg-gradient-to-br from-[#b6b2ff]/85 to-[#8f8bff]/85 px-6 py-3 text-lg font-semibold text-white shadow-[0_8px_30px_rgba(137,125,255,0.25)] transition hover:scale-[1.02] hover:shadow-[0_12px_40px_rgba(137,125,255,0.32)]"
+          className="hidden md:inline-flex h-12 items-center rounded-2xl border border-white/20 bg-gradient-to-br from-[#b6b2ff]/85 to-[#8f8bff]/85 px-6 text-base font-semibold text-white shadow-[0_8px_30px_rgba(137,125,255,0.25)] transition hover:scale-[1.02] hover:shadow-[0_12px_40px_rgba(137,125,255,0.32)] sm:h-14 sm:px-8 sm:text-lg"
         >
           ابدأ الآن
         </Link>
@@ -73,13 +76,16 @@ export default function Navbar() {
           onClick={() => setIsOpen(!isOpen)}
           aria-label="Menu"
         >
-          {isOpen ? <X size={24} /> : <Menu size={24} />}
+          {isOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
       </div>
 
       {isOpen && (
         <div className="mx-4 mb-4 rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-2xl md:hidden">
           <div className="space-y-4 text-slate-700">
+            <Link href="/" className="block transition hover:text-slate-900" onClick={() => setIsOpen(false)}>
+              الرئيسية
+            </Link>
             <Link
               href="/packages"
               className="block transition hover:text-slate-900"

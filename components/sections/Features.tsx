@@ -38,7 +38,7 @@ const features = [
 
 export default function Features() {
   return (
-    <section className="relative overflow-hidden bg-[#F8FAFF] px-4 py-20">
+    <section className="relative overflow-hidden bg-[#F8FAFF] px-4 py-14 sm:py-20 lg:py-24">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_0%,rgba(124,108,255,0.09),transparent_35%),radial-gradient(circle_at_10%_30%,rgba(180,190,255,0.14),transparent_40%)]" />
       <div className="container mx-auto">
         <motion.div
@@ -46,12 +46,12 @@ export default function Features() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="relative mb-16 text-center"
+          className="relative mb-10 text-center sm:mb-16"
         >
-          <h2 className="mb-4 text-4xl font-bold text-[#1F2433] md:text-5xl">
+          <h2 className="mb-4 text-3xl font-bold text-[#1F2433] sm:text-4xl md:text-5xl">
             مميزات منصة بشارة
           </h2>
-          <p className="mx-auto max-w-2xl text-xl text-[#7B8194]">
+          <p className="mx-auto max-w-2xl text-base text-[#7B8194] sm:text-lg md:text-xl">
             كل ما تحتاجه لإنشاء دعوة احترافية في مكان واحد
           </p>
         </motion.div>
