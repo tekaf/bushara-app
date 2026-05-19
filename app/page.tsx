@@ -6,7 +6,7 @@ import FAQSection from '@/components/sections/FAQSection'
 import Navbar from '@/components/ui/Navbar'
 import Footer from '@/components/ui/Footer'
 import FirstVisitIntro from '@/components/ui/FirstVisitIntro'
-import ExamplesStudioMarquee from '@/components/sections/ExamplesStudioMarquee'
+import HomeExamplesSection from '@/components/sections/HomeExamplesSection'
 import HomePreviousInviteSample from '@/components/sections/HomePreviousInviteSample'
 
 const EHSAN_FAST_DONATION_URL =
@@ -20,14 +20,7 @@ export default function Home() {
       <Hero />
       <Features />
 
-      <section className="relative overflow-hidden bg-[#F8FAFF] px-4 py-16">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(124,108,255,0.1),transparent_32%),radial-gradient(circle_at_80%_30%,rgba(180,190,255,0.14),transparent_34%)]" />
-        <div className="container relative mx-auto">
-          <h2 className="mb-4 text-3xl font-bold text-[#1F2433]">نماذج من أعمالنا</h2>
-          <p className="mb-6 text-[#7B8194]">تصفح مجموعة مختارة من الدعوات المنفذة.</p>
-          <ExamplesStudioMarquee />
-        </div>
-      </section>
+      <HomeExamplesSection />
 
       <PackagesPreview />
       <CTA />
