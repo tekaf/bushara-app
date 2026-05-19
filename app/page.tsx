@@ -25,12 +25,12 @@ export default function Home() {
       <PackagesPreview />
       <CTA />
 
-      <section id="contact" className="relative overflow-hidden bg-[#F6F7FB] px-4 py-10 sm:py-16 lg:py-24">
+      <section id="contact" className="relative overflow-hidden bg-[#F6F7FB] px-4 py-8 sm:py-14 lg:py-24">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_12%,rgba(124,108,255,0.1),transparent_34%),radial-gradient(circle_at_88%_30%,rgba(176,188,255,0.12),transparent_36%)]" />
         <div className="container relative mx-auto grid grid-cols-1 items-center gap-6 md:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-[28px] border border-[rgba(150,160,190,0.18)] bg-white/72 p-8 shadow-[0_24px_80px_rgba(31,36,51,0.08)] backdrop-blur-2xl">
-            <h3 className="mb-3 text-[28px] font-bold leading-[1.25] text-[#1F2433] sm:text-[36px] md:text-[48px]">تواصل معنا</h3>
-            <p className="mb-2 text-[15px] leading-[1.8] text-[#7B8194] sm:text-[18px]">للدعم الفني والاستفسارات</p>
+            <h3 className="mb-3 text-[24px] font-bold leading-[1.25] text-[#1F2433] sm:text-[36px] md:text-[48px]">تواصل معنا</h3>
+            <p className="mb-2 text-[14px] leading-6 text-[#7B8194] sm:text-[18px]">للدعم الفني والاستفسارات</p>
             <p className="mb-6 text-[#7B8194]">busharh.sa@gmail.com</p>
             <a
               href="mailto:busharh.sa@gmail.com"

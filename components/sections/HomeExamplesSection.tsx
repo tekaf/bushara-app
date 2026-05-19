@@ -49,11 +49,11 @@ export default function HomeExamplesSection() {
   ]
 
   return (
-    <section className="relative overflow-hidden bg-[#F8FAFF] px-4 py-10 sm:py-16 lg:py-24">
+    <section className="relative overflow-hidden bg-[#F8FAFF] px-4 py-8 sm:py-14 lg:py-24">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(124,108,255,0.1),transparent_32%),radial-gradient(circle_at_80%_30%,rgba(180,190,255,0.14),transparent_34%)]" />
       <div className="container relative mx-auto">
-        <h2 className="mb-4 text-[28px] font-bold leading-[1.25] text-[#1F2433] sm:text-[36px] md:text-[48px]">نماذج من أعمالنا</h2>
-        <p className="mb-6 text-[15px] leading-[1.8] text-[#7B8194] sm:text-[18px]">تصفح مجموعة مختارة من الدعوات المنفذة.</p>
+        <h2 className="mb-4 text-[24px] font-bold leading-[1.25] text-[#1F2433] sm:text-[36px] md:text-[48px]">نماذج من أعمالنا</h2>
+        <p className="mb-6 text-[14px] leading-6 text-[#7B8194] sm:text-[18px]">تصفح مجموعة مختارة من الدعوات المنفذة.</p>
         <ExamplesStudioMarquee samples={displayedExamples} />
       </div>
     </section>

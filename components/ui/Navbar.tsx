@@ -37,7 +37,7 @@ export default function Navbar() {
       }}
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent" />
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:h-24 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:h-24 sm:px-6 lg:px-8">
         <nav className="hidden md:flex items-center gap-7 text-base font-medium text-slate-700">
           <Link href="/" className="transition hover:text-slate-900">
             الرئيسية
@@ -60,7 +60,7 @@ export default function Navbar() {
             onError={(event) => {
               event.currentTarget.src = '/icon.png'
             }}
-            className="h-auto w-24 object-contain opacity-100 drop-shadow-[0_0_14px_rgba(74,66,118,0.42)] sm:w-24"
+            className="h-auto w-[92px] object-contain opacity-100 drop-shadow-[0_0_14px_rgba(74,66,118,0.42)] sm:w-24"
           />
         </Link>
 

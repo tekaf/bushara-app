@@ -25,7 +25,7 @@ export default function PackagesPreview() {
   ]
 
   return (
-    <section className="relative overflow-hidden bg-[#F6F7FB] px-4 py-10 sm:py-16 lg:py-24">
+    <section className="relative overflow-hidden bg-[#F6F7FB] px-4 py-8 sm:py-14 lg:py-24">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(124,108,255,0.1),transparent_34%),radial-gradient(circle_at_80%_10%,rgba(176,190,255,0.14),transparent_32%)]" />
       <div className="container relative mx-auto">
         <motion.div
@@ -39,13 +39,13 @@ export default function PackagesPreview() {
             <Sparkles size={15} />
             عرض الإطلاق - خصم {LAUNCH_DISCOUNT_PERCENT}%
           </div>
-          <h2 className="mb-4 text-[28px] font-bold leading-[1.25] text-[#1F2433] sm:text-[36px] md:text-[48px]">باقاتنا</h2>
-          <p className="mx-auto max-w-2xl text-[15px] leading-[1.8] text-[#7B8194] sm:text-[18px]">
+          <h2 className="mb-4 text-[24px] font-bold leading-[1.25] text-[#1F2433] sm:text-[36px] md:text-[48px]">باقاتنا</h2>
+          <p className="mx-auto max-w-2xl text-[14px] leading-6 text-[#7B8194] sm:text-[18px]">
             اختر الباقة المناسبة لعدد ضيوفك
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-4 sm:gap-8 md:grid-cols-3">
           {previewPackages.map((pkg, index) => {
             const isPopular = pkg.guests === 200
             const saving = pkg.oldPrice - pkg.paidPrice
@@ -56,13 +56,13 @@ export default function PackagesPreview() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
-              className={`relative rounded-[28px] border p-8 backdrop-blur-2xl ${
+              className={`relative mx-auto w-full max-w-[320px] rounded-[24px] border p-5 backdrop-blur-2xl sm:max-w-[330px] sm:rounded-[28px] sm:p-8 ${
                 isPopular
                   ? 'scale-[1.03] border-[rgba(109,93,251,0.28)] bg-white/80 shadow-[0_20px_48px_rgba(31,36,51,0.1)]'
                   : 'border-[rgba(150,160,190,0.2)] bg-white/75 shadow-[0_14px_36px_rgba(31,36,51,0.06)]'
               }`}
             >
-              <div className="absolute left-4 top-4 rounded-full bg-[#6D5DFB] px-3 py-1 text-xs font-bold text-white">
+              <div className="absolute left-4 top-4 rounded-full bg-[#6D5DFB] px-3 py-1 text-[12px] font-bold text-white">
                 خصم {LAUNCH_DISCOUNT_PERCENT}%
               </div>
 
@@ -72,15 +72,15 @@ export default function PackagesPreview() {
                 </div>
               )}
 
-              <div className="text-center mb-8">
-                <h3 className="text-2xl font-bold mb-2">
+              <div className="mb-6 text-center sm:mb-8">
+                <h3 className="mb-2 text-[22px] font-bold">
                   {pkg.guests} ضيف
                 </h3>
                 <div className="flex items-baseline justify-center gap-2">
-                  <span className="text-4xl font-bold text-[#6D5DFB]">
+                  <span className="text-[38px] font-bold text-[#6D5DFB]">
                     {pkg.paidPrice}
                   </span>
-                  <span className="text-[#7B8194]">ر.س</span>
+                  <span className="text-[14px] text-[#7B8194]">ر.س</span>
                 </div>
                 <div className="mt-2 text-sm text-[#7B8194] line-through">
                   {formatSar(pkg.oldPrice)}
@@ -90,10 +90,10 @@ export default function PackagesPreview() {
                 </div>
               </div>
 
-              <ul className="space-y-4 mb-8">
+              <ul className="mb-6 space-y-3 sm:mb-8">
                 {packageFeatures.map((feature) => (
-                  <li key={feature} className="flex items-center gap-3">
-                    <Check className="text-[#6D5DFB] flex-shrink-0" size={20} />
+                  <li key={feature} className="flex items-center gap-3 text-[15px]">
+                    <Check className="h-4 w-4 flex-shrink-0 text-[#6D5DFB]" />
                     <span className="text-[#7B8194]">{feature}</span>
                   </li>
                 ))}
@@ -101,7 +101,7 @@ export default function PackagesPreview() {
 
               <Link
                 href="/packages"
-                className={`block w-full rounded-xl py-3 text-center font-semibold transition-all ${
+                className={`block h-11 w-full rounded-[14px] py-3 text-center text-[15px] font-semibold transition-all ${
                   isPopular
                     ? 'bg-gradient-to-br from-[#7C6CFF] to-[#5F6CFF] text-white shadow-[0_16px_34px_rgba(109,93,251,0.2)] hover:-translate-y-0.5'
                     : 'bg-[#EEEAFE] text-[#6D5DFB] hover:bg-[#E5E0FF]'
