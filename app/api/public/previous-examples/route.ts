@@ -5,10 +5,22 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+function normalizeAssetUrl(value?: string): string {
+  if (!value) return ''
+  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')) {
+    return value
+  }
+  return `/${value}`
+}
+
 type PreviousExampleRow = {
   id: string
   title: string
   sortOrder?: number
+  imageUrl?: string
+  previewUrl?: string
+  thumbUrl?: string
+  url?: string
   assets?: {
     sourceUrl?: string
     previewUrl?: string
@@ -25,22 +37,45 @@ export async function GET() {
       return NextResponse.json({ items: [] })
     }
 
-    const snap = await adminDb
-      .collection('previousExamples')
-      .where('status', '==', 'published')
-      .get()
+    const collectionName = 'previousExamples'
+    const snap = await adminDb.collection(collectionName).get()
+    const docs = snap.docs
 
-    const rows: PreviousExampleRow[] = snap.docs
+    const rows: PreviousExampleRow[] = docs
       .map((doc) => {
         const data = doc.data() as any
+        const isPublished =
+          String(data?.status || '').trim().toLowerCase() === 'published' ||
+          data?.isPublished === true ||
+          data?.published === true
+        const imageUrl = normalizeAssetUrl(
+          data?.imageUrl ||
+            data?.previewUrl ||
+            data?.thumbUrl ||
+            data?.url ||
+            data?.assets?.previewUrl ||
+            data?.assets?.thumbUrl ||
+            data?.assets?.sourceUrl
+        )
         return {
           id: doc.id,
           title: data?.title || 'دعوة سابقة',
           sortOrder: Number.isFinite(Number(data?.sortOrder)) ? Number(data.sortOrder) : 9999,
-          assets: data?.assets || {},
+          imageUrl,
+          previewUrl: normalizeAssetUrl(data?.previewUrl || data?.assets?.previewUrl),
+          thumbUrl: normalizeAssetUrl(data?.thumbUrl || data?.assets?.thumbUrl),
+          url: normalizeAssetUrl(data?.url || data?.assets?.sourceUrl),
+          assets: {
+            sourceUrl: normalizeAssetUrl(data?.assets?.sourceUrl || data?.url),
+            previewUrl: normalizeAssetUrl(data?.assets?.previewUrl || data?.previewUrl || data?.imageUrl),
+            thumbUrl: normalizeAssetUrl(data?.assets?.thumbUrl || data?.thumbUrl),
+          },
           createdAt: data?.createdAt?.toMillis?.() || 0,
+          status: String(data?.status || ''),
+          isPublished,
         }
       })
+      .filter((row: any) => row.isPublished && Boolean(row.imageUrl))
       .sort((a, b) => {
         const orderA = Number.isFinite(a.sortOrder) ? Number(a.sortOrder) : 9999
         const orderB = Number.isFinite(b.sortOrder) ? Number(b.sortOrder) : 9999
@@ -53,7 +88,7 @@ export async function GET() {
       return {
         id: row.id,
         title: row.title,
-        previewUrl,
+        previewUrl: previewUrl || row.imageUrl || '',
         startsWithHttp: previewUrl.startsWith('http://') || previewUrl.startsWith('https://'),
         startsWithSlash: previewUrl.startsWith('/'),
       }

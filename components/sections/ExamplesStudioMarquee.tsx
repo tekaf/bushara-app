@@ -63,9 +63,6 @@ export default function ExamplesStudioMarquee() {
 
         const normalizedItems = rawItems.map(normalizeSample).filter((item) => Boolean(item.imageUrl))
 
-        console.log('[HOME_SAMPLES_RAW]', rawItems)
-        console.log('[HOME_SAMPLES_NORMALIZED]', normalizedItems)
-
         setExecutedInvitationSamples(normalizedItems)
       } catch (error) {
         setExecutedInvitationSamples([])
