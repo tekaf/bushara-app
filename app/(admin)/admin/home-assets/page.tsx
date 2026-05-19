@@ -6,7 +6,7 @@ import { ArrowLeft, ImageUp, Save } from 'lucide-react'
 import { useAuth } from '@/lib/auth/context'
 import { isAdminEmailClient } from '@/lib/auth/admin-access'
 
-type AssetKind = 'hero' | 'previous' | 'brandLogo'
+type AssetKind = 'hero' | 'contact' | 'brandLogo'
 
 export default function HomeAssetsAdminPage() {
   const { user, loading: authLoading } = useAuth()
@@ -14,14 +14,14 @@ export default function HomeAssetsAdminPage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState<AssetKind | null>(null)
   const [heroImageUrl, setHeroImageUrl] = useState('')
-  const [previousInviteImageUrl, setPreviousInviteImageUrl] = useState('')
+  const [contactPreviewImageUrl, setContactPreviewImageUrl] = useState('')
   const [brandLogoUrl, setBrandLogoUrl] = useState('')
   const [heroFile, setHeroFile] = useState<File | null>(null)
-  const [previousFile, setPreviousFile] = useState<File | null>(null)
+  const [contactFile, setContactFile] = useState<File | null>(null)
   const [brandLogoFile, setBrandLogoFile] = useState<File | null>(null)
 
   const canUploadHero = useMemo(() => !!heroFile && !submitting, [heroFile, submitting])
-  const canUploadPrevious = useMemo(() => !!previousFile && !submitting, [previousFile, submitting])
+  const canUploadContact = useMemo(() => !!contactFile && !submitting, [contactFile, submitting])
   const canUploadBrandLogo = useMemo(() => !!brandLogoFile && !submitting, [brandLogoFile, submitting])
 
   const loadAssets = async () => {
@@ -34,7 +34,7 @@ export default function HomeAssetsAdminPage() {
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data?.error || 'Failed to load home assets')
       setHeroImageUrl(String(data?.heroImageUrl || ''))
-      setPreviousInviteImageUrl(String(data?.previousInviteImageUrl || ''))
+      setContactPreviewImageUrl(String(data?.contactPreviewImageUrl || data?.previousInviteImageUrl || ''))
       setBrandLogoUrl(String(data?.brandLogoUrl || ''))
     } catch (error) {
       console.error('Failed to load home assets:', error)
@@ -54,7 +54,7 @@ export default function HomeAssetsAdminPage() {
 
   const uploadAsset = async (kind: AssetKind) => {
     if (!user) return
-    const file = kind === 'hero' ? heroFile : kind === 'previous' ? previousFile : brandLogoFile
+    const file = kind === 'hero' ? heroFile : kind === 'contact' ? contactFile : brandLogoFile
     if (!file) return
     try {
       setSubmitting(kind)
@@ -74,18 +74,16 @@ export default function HomeAssetsAdminPage() {
         setHeroFile(null)
         const input = document.getElementById('home-asset-hero') as HTMLInputElement | null
         if (input) input.value = ''
+      } else if (kind === 'contact') {
+        setContactPreviewImageUrl(String(data?.url || ''))
+        setContactFile(null)
+        const input = document.getElementById('home-asset-contact') as HTMLInputElement | null
+        if (input) input.value = ''
       } else {
-        if (kind === 'previous') {
-          setPreviousInviteImageUrl(String(data?.url || ''))
-          setPreviousFile(null)
-          const input = document.getElementById('home-asset-previous') as HTMLInputElement | null
-          if (input) input.value = ''
-        } else {
-          setBrandLogoUrl(String(data?.url || ''))
-          setBrandLogoFile(null)
-          const input = document.getElementById('home-asset-brand-logo') as HTMLInputElement | null
-          if (input) input.value = ''
-        }
+        setBrandLogoUrl(String(data?.url || ''))
+        setBrandLogoFile(null)
+        const input = document.getElementById('home-asset-brand-logo') as HTMLInputElement | null
+        if (input) input.value = ''
       }
       alert('تم الرفع بأعلى جودة وحفظ الصورة بنجاح')
     } catch (error: any) {
@@ -177,29 +175,29 @@ export default function HomeAssetsAdminPage() {
           </div>
 
           <div className="bg-white rounded-2xl p-6 shadow-sm space-y-4">
-            <h2 className="text-xl font-bold">صورة نموذج دعوة سابقة</h2>
-            <p className="text-sm text-muted">ستظهر في فقرة &quot;نموذج دعوة سابقة&quot; بأسفل الصفحة الرئيسية.</p>
+            <h2 className="text-xl font-bold">صورة Contact Preview</h2>
+            <p className="text-sm text-muted">ستظهر في قسم التواصل داخل الصفحة الرئيسية.</p>
             <div className="aspect-[9/16] rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
-              {previousInviteImageUrl ? (
-                <img src={previousInviteImageUrl} alt="Previous Invite Asset" className="w-full h-full object-contain" />
+              {contactPreviewImageUrl ? (
+                <img src={contactPreviewImageUrl} alt="Contact Preview Asset" className="w-full h-full object-contain" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-muted">لا توجد صورة حالياً</div>
               )}
             </div>
             <input
-              id="home-asset-previous"
+              id="home-asset-contact"
               type="file"
               accept="image/*"
-              onChange={(e) => setPreviousFile(e.target.files?.[0] || null)}
+              onChange={(e) => setContactFile(e.target.files?.[0] || null)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white"
             />
             <button
               type="button"
-              onClick={() => uploadAsset('previous')}
-              disabled={!canUploadPrevious}
+              onClick={() => uploadAsset('contact')}
+              disabled={!canUploadContact}
               className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {submitting === 'previous' ? (
+              {submitting === 'contact' ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                   جاري الرفع...
@@ -207,7 +205,7 @@ export default function HomeAssetsAdminPage() {
               ) : (
                 <>
                   <Save className="w-5 h-5" />
-                  رفع صورة نموذج الدعوة
+                  رفع صورة التواصل
                 </>
               )}
             </button>
@@ -249,6 +247,18 @@ export default function HomeAssetsAdminPage() {
               )}
             </button>
           </div>
+        </div>
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <h2 className="text-xl font-bold mb-2">الأعمال السابقة المنفذة</h2>
+          <p className="text-sm text-muted mb-4">
+            لإدارة صور الدعوات المنفذة التي تظهر في قسم &quot;نماذج من أعمالنا&quot; استخدم صفحة الأعمال السابقة.
+          </p>
+          <Link
+            href="/admin/previous-examples"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 font-semibold text-white hover:bg-accent"
+          >
+            إدارة الأعمال السابقة
+          </Link>
         </div>
       </div>
     </div>

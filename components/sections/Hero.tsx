@@ -3,12 +3,32 @@
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { ArrowLeft, Sparkles } from 'lucide-react'
-import { useState } from 'react'
+import Image from 'next/image'
+import { useEffect, useState } from 'react'
 
 const HERO_INVITATION_IMAGE = '/home/hero-invitation.webp'
 
 export default function Hero() {
+  const [imageUrl, setImageUrl] = useState(HERO_INVITATION_IMAGE)
   const [imageFailed, setImageFailed] = useState(false)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const loadHomeAssets = async () => {
+      try {
+        const response = await fetch('/api/public/home-assets', { signal: controller.signal })
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) return
+        const nextUrl = String(data?.heroImageUrl || HERO_INVITATION_IMAGE).trim() || HERO_INVITATION_IMAGE
+        setImageUrl(nextUrl)
+        setImageFailed(false)
+      } catch {
+        setImageUrl(HERO_INVITATION_IMAGE)
+      }
+    }
+    loadHomeAssets()
+    return () => controller.abort()
+  }, [])
 
   return (
     <section className="relative overflow-hidden px-4 pb-20 pt-32">
@@ -79,23 +99,18 @@ export default function Hero() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="relative"
           >
-            <div className="flex aspect-square items-center justify-center rounded-[30px] border border-[rgba(150,160,190,0.18)] bg-[rgba(255,255,255,0.72)] p-8 shadow-[0_24px_80px_rgba(31,36,51,0.08)] backdrop-blur-2xl">
-              {!imageFailed ? (
-                <div className="h-full max-h-[560px] w-full max-w-md rounded-2xl border border-white/80 bg-white/80 p-3 shadow-[0_16px_44px_rgba(31,36,51,0.12)]">
-                  <img
-                    src={HERO_INVITATION_IMAGE}
-                    alt="Hero invitation"
-                    className="w-full h-full object-cover rounded-xl"
-                    loading="lazy"
-                    decoding="async"
-                    onError={() => setImageFailed(true)}
-                  />
-                </div>
-              ) : (
-                <div className="w-full max-w-md rounded-2xl border border-white/80 bg-white/80 p-6 text-center text-sm text-[#7B8194] shadow-[0_16px_44px_rgba(31,36,51,0.12)]">
-                  صورة الدعوة غير متاحة حاليًا.
-                </div>
-              )}
+            <div className="rounded-[30px] border border-[rgba(150,160,190,0.18)] bg-[rgba(255,255,255,0.72)] p-3 shadow-[0_24px_80px_rgba(31,36,51,0.08)] backdrop-blur-2xl">
+              {!imageFailed && imageUrl ? (
+                <Image
+                  src={imageUrl}
+                  alt="نموذج دعوة بشارة"
+                  width={520}
+                  height={720}
+                  className="h-full w-full rounded-[28px] object-cover"
+                  onError={() => setImageFailed(true)}
+                  priority={false}
+                />
+              ) : null}
             </div>
           </motion.div>
         </div>

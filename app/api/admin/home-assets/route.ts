@@ -5,13 +5,14 @@ import { isAdminEmailServer } from '@/lib/auth/admin-access'
 
 export const runtime = 'nodejs'
 
-const DOC_ID = 'homeAssets'
-const COLLECTION_ID = 'siteSettings'
+const DOC_ID = 'landing'
+const COLLECTION_ID = 'homeAssets'
 
-type AssetKind = 'hero' | 'previous' | 'brandLogo'
+type AssetKind = 'hero' | 'contact' | 'previous' | 'brandLogo'
 
 function normalizeKind(value: string): AssetKind | null {
   if (value === 'hero') return 'hero'
+  if (value === 'contact') return 'contact'
   if (value === 'previous') return 'previous'
   if (value === 'brandLogo') return 'brandLogo'
   return null
@@ -35,9 +36,11 @@ export async function GET(request: NextRequest) {
     if (!adminDb) return NextResponse.json({ error: 'Admin SDK not configured' }, { status: 500 })
     const docSnap = await adminDb.collection(COLLECTION_ID).doc(DOC_ID).get()
     const data = docSnap.exists ? (docSnap.data() as any) : {}
+    const contactUrl = String(data?.contactPreviewImageUrl || data?.previousInviteImageUrl || '')
     return NextResponse.json({
       heroImageUrl: data?.heroImageUrl || '',
-      previousInviteImageUrl: data?.previousInviteImageUrl || '',
+      contactPreviewImageUrl: contactUrl,
+      previousInviteImageUrl: contactUrl,
       brandLogoUrl: data?.brandLogoUrl || '',
       updatedAt: data?.updatedAt?.toDate?.()?.toISOString?.() || null,
     })
@@ -92,7 +95,10 @@ export async function POST(request: NextRequest) {
       updatedBy: decoded.uid,
     }
     if (kind === 'hero') updates.heroImageUrl = fileUrl
-    if (kind === 'previous') updates.previousInviteImageUrl = fileUrl
+    if (kind === 'contact' || kind === 'previous') {
+      updates.contactPreviewImageUrl = fileUrl
+      updates.previousInviteImageUrl = fileUrl
+    }
     if (kind === 'brandLogo') updates.brandLogoUrl = fileUrl
     await adminDb.collection(COLLECTION_ID).doc(DOC_ID).set(updates, { merge: true })
 

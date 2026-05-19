@@ -10,24 +10,23 @@ export async function GET() {
     const adminDb = getAdminFirestore()
     if (!adminDb) {
       return NextResponse.json({
-        heroImageUrl: '',
-        previousInviteImageUrl: '',
-        brandLogoUrl: '',
+        heroImageUrl: '/home/hero-invitation.webp',
+        contactPreviewImageUrl: '/home/contact-preview.webp',
       })
     }
-    const snap = await adminDb.collection('siteSettings').doc('homeAssets').get()
+
+    const snap = await adminDb.collection('homeAssets').doc('landing').get()
     const data = snap.exists ? (snap.data() as any) : {}
+
     return NextResponse.json({
-      heroImageUrl: data?.heroImageUrl || '',
-      previousInviteImageUrl: data?.previousInviteImageUrl || '',
-      brandLogoUrl: data?.brandLogoUrl || '',
+      heroImageUrl: String(data?.heroImageUrl || '/home/hero-invitation.webp'),
+      contactPreviewImageUrl: String(data?.contactPreviewImageUrl || '/home/contact-preview.webp'),
     })
   } catch (error: any) {
     console.error('❌ [API][PUBLIC][HOME_ASSETS] failed:', error)
     return NextResponse.json({
-      heroImageUrl: '',
-      previousInviteImageUrl: '',
-      brandLogoUrl: '',
+      heroImageUrl: '/home/hero-invitation.webp',
+      contactPreviewImageUrl: '/home/contact-preview.webp',
     })
   }
 }
