@@ -60,7 +60,7 @@ export default function Navbar() {
             onError={(event) => {
               event.currentTarget.src = '/icon.png'
             }}
-            className="h-16 w-16 object-contain opacity-100 drop-shadow-[0_0_14px_rgba(74,66,118,0.42)] sm:h-24 sm:w-24"
+            className="h-auto w-24 object-contain opacity-100 drop-shadow-[0_0_14px_rgba(74,66,118,0.42)] sm:w-24"
           />
         </Link>
 
@@ -76,7 +76,7 @@ export default function Navbar() {
           onClick={() => setIsOpen(!isOpen)}
           aria-label="Menu"
         >
-          {isOpen ? <X size={22} /> : <Menu size={22} />}
+          {isOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
 

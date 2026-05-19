@@ -25,7 +25,7 @@ export default function PackagesPreview() {
   ]
 
   return (
-    <section className="relative overflow-hidden bg-[#F6F7FB] px-4 py-14 sm:py-20 lg:py-24">
+    <section className="relative overflow-hidden bg-[#F6F7FB] px-4 py-10 sm:py-16 lg:py-24">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(124,108,255,0.1),transparent_34%),radial-gradient(circle_at_80%_10%,rgba(176,190,255,0.14),transparent_32%)]" />
       <div className="container relative mx-auto">
         <motion.div
@@ -39,8 +39,8 @@ export default function PackagesPreview() {
             <Sparkles size={15} />
             عرض الإطلاق - خصم {LAUNCH_DISCOUNT_PERCENT}%
           </div>
-          <h2 className="mb-4 text-3xl font-bold text-[#1F2433] sm:text-4xl md:text-5xl">باقاتنا</h2>
-          <p className="mx-auto max-w-2xl text-base text-[#7B8194] sm:text-lg md:text-xl">
+          <h2 className="mb-4 text-[28px] font-bold leading-[1.25] text-[#1F2433] sm:text-[36px] md:text-[48px]">باقاتنا</h2>
+          <p className="mx-auto max-w-2xl text-[15px] leading-[1.8] text-[#7B8194] sm:text-[18px]">
             اختر الباقة المناسبة لعدد ضيوفك
           </p>
         </motion.div>

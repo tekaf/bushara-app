@@ -31,7 +31,7 @@ export default function Hero() {
   }, [])
 
   return (
-    <section className="relative overflow-hidden px-4 pb-14 pt-24 sm:pb-20 sm:pt-28 md:pt-32">
+    <section className="relative overflow-hidden px-4 pb-10 pt-20 sm:pb-16 sm:pt-24 md:pt-32">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(124,108,255,0.12),transparent_32%),radial-gradient(circle_at_80%_30%,rgba(180,190,255,0.16),transparent_34%)]" />
       <div className="container relative mx-auto">
         <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-2 lg:gap-12">
@@ -55,7 +55,7 @@ export default function Hero() {
               initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="mb-5 text-[42px] font-bold leading-[1.15] text-[#1F2433] sm:text-5xl md:text-6xl md:leading-[1.18] lg:text-[72px]"
+              className="mb-5 text-[34px] font-bold leading-[1.15] text-[#1F2433] sm:text-[44px] md:text-[64px] md:leading-[1.18] lg:text-[72px]"
             >
               مناسبتك غالية..
               <span className="mt-2 block">ودعوتك لازم تصير تُحفة</span>
@@ -65,7 +65,7 @@ export default function Hero() {
               initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="mb-7 text-base leading-relaxed text-[#7B8194] sm:text-lg"
+              className="mb-7 text-[16px] leading-8 text-[#7B8194] sm:text-[18px]"
             >
               أنشئ دعوتك، أرسلها، وتابع حضور ضيوفك بسهولة من مكان واحد.
             </motion.p>
@@ -97,7 +97,7 @@ export default function Hero() {
             initial={false}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="relative mx-auto w-full max-w-[340px] sm:max-w-[460px] lg:max-w-[620px]"
+            className="relative mx-auto w-full max-w-[300px] sm:max-w-[460px] lg:max-w-[620px]"
           >
             <div className="rounded-[30px] border border-[rgba(150,160,190,0.18)] bg-[rgba(255,255,255,0.72)] p-3 shadow-[0_24px_80px_rgba(31,36,51,0.08)] backdrop-blur-2xl">
               {!imageFailed && imageUrl ? (
