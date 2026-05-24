@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuth } from 'firebase-admin/auth'
-import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
-import { isAdminEmailServer } from '@/lib/auth/admin-access'
+import { ADMIN_SDK_USER_ERROR_AR, isAdminSdkError, verifyAdminRequest } from '@/lib/auth/verify-admin-request'
 import { INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
 
 export const runtime = 'nodejs'
-const ADMIN_SDK_USER_ERROR =
-  'تعذر تحميل قائمة المراجعة بسبب مشكلة في إعدادات الخادم. يرجى التحقق من إعدادات Firebase Admin.'
 
 const VISIBLE_WORKSHOP_STATUSES = [
   INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW,
@@ -19,29 +15,18 @@ const VISIBLE_WORKSHOP_STATUSES = [
   INVITE_WORKFLOW_STATUS.SENT,
 ] as const
 
-async function verifyAdmin(request: NextRequest) {
-  const authHeader = request.headers.get('authorization') || ''
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
-  if (!token) throw new Error('Unauthorized')
-
-  const app = getAdminApp()
-  if (!app) throw new Error('ADMIN_SDK_NOT_CONFIGURED')
-
-  const auth = getAuth(app)
-  const decoded = await auth.verifyIdToken(token)
-  if (!decoded?.uid) throw new Error('Unauthorized')
-  const email = decoded.email || (await auth.getUser(decoded.uid)).email || ''
-  if (!isAdminEmailServer(email)) throw new Error('Unauthorized')
+function toIso(value: unknown): string | null {
+  if (!value) return null
+  if (typeof (value as { toDate?: () => Date })?.toDate === 'function') {
+    return (value as { toDate: () => Date }).toDate()?.toISOString?.() || null
+  }
+  const d = new Date(String(value))
+  return Number.isFinite(d.getTime()) ? d.toISOString() : null
 }
 
 export async function GET(request: NextRequest) {
   try {
-    await verifyAdmin(request)
-    const adminDb = getAdminFirestore()
-    if (!adminDb) {
-      console.error('[ADMIN_REVIEW_QUEUE] firestore unavailable: admin sdk not configured')
-      return NextResponse.json({ error: ADMIN_SDK_USER_ERROR }, { status: 500 })
-    }
+    const { adminDb } = await verifyAdminRequest(request)
 
     const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 50)
     const limit = Math.max(1, Math.min(200, limitRaw))
@@ -56,7 +41,6 @@ export async function GET(request: NextRequest) {
         .limit(limit)
         .get()
     } catch {
-      // Fallback when composite index is not yet created on the environment.
       try {
         snap = await adminDb
           .collection('invites')
@@ -64,72 +48,87 @@ export async function GET(request: NextRequest) {
           .limit(limit)
           .get()
       } catch {
-        // Final fallback without "in" constraints: filter in memory.
         snap = await adminDb.collection('invites').orderBy('updatedAt', 'desc').limit(300).get()
       }
     }
 
     const invitesRaw = await Promise.all(
       snap.docs.map(async (doc) => {
-        const row = doc.data() as any
-        if (!VISIBLE_WORKSHOP_STATUSES.includes(String(row?.workflowStatus || '') as any)) return null
-        const internalSnap = await adminDb.collection('invitation_internal').doc(doc.id).get()
-        const internal = internalSnap.exists ? (internalSnap.data() as any) : {}
-        const ownerId = String(row?.ownerId || '')
-        let ownerName = ''
-        if (ownerId) {
-          const userSnap = await adminDb.collection('users').doc(ownerId).get()
-          if (userSnap.exists) {
-            const user = userSnap.data() as any
-            ownerName = String(user?.name || '').trim()
+        try {
+          const row = doc.data() as Record<string, unknown>
+          if (!VISIBLE_WORKSHOP_STATUSES.includes(String(row?.workflowStatus || '') as (typeof VISIBLE_WORKSHOP_STATUSES)[number])) {
+            return null
           }
-        }
 
-        // Prefer internal admin preview, then fall back to legacy preview fields.
-        const adminPreviewUrl = String(
-          internal?.adminPreviewUrl || row?.previewUrl || row?.inviteImageUrl || row?.finalUrl || ''
-        ).trim()
+          let internal: Record<string, unknown> = {}
+          try {
+            const internalSnap = await adminDb.collection('invitation_internal').doc(doc.id).get()
+            internal = internalSnap.exists ? (internalSnap.data() as Record<string, unknown>) : {}
+          } catch {
+            internal = {}
+          }
 
-        return {
-          id: doc.id,
-          orderCode: String(row?.orderCode || row?.orderNumber || '').trim(),
-          ownerName,
-          ownerId,
-          workflowStatus: row?.workflowStatus || '',
-          reviewStatus: row?.reviewStatus || '',
-          adminPreviewUrl,
-          workshopEnteredAt: row?.workshopEnteredAt?.toDate?.()?.toISOString?.() || null,
+          const ownerId = String(row?.ownerId || '')
+          let ownerName = ''
+          if (ownerId) {
+            try {
+              const userSnap = await adminDb.collection('users').doc(ownerId).get()
+              if (userSnap.exists) {
+                const user = userSnap.data() as Record<string, unknown>
+                ownerName = String(user?.name || '').trim()
+              }
+            } catch {
+              ownerName = ''
+            }
+          }
+
+          const adminPreviewUrl = String(
+            internal?.adminPreviewUrl || row?.previewUrl || row?.inviteImageUrl || row?.finalUrl || ''
+          ).trim()
+
+          return {
+            id: doc.id,
+            orderCode: String(row?.orderCode || row?.orderNumber || '').trim(),
+            ownerName,
+            ownerId,
+            workflowStatus: String(row?.workflowStatus || ''),
+            reviewStatus: String(row?.reviewStatus || ''),
+            adminPreviewUrl,
+            workshopEnteredAt: toIso(row?.workshopEnteredAt),
+          }
+        } catch (docError) {
+          console.error('[ADMIN_REVIEW_QUEUE] failed to map invite', doc.id, docError)
+          return null
         }
       })
     )
 
-    // Keep newest first even when fallback query path is used without orderBy.
     const invites = invitesRaw
       .filter(Boolean)
-      .filter((row: any) => {
+      .filter((row) => {
         if (!query) return true
         const id = String(row?.id || '').toLowerCase()
         const orderCode = String(row?.orderCode || '').toLowerCase()
         return id.includes(query) || orderCode.includes(query)
       })
-      .sort((a: any, b: any) => {
-        const at = a.workshopEnteredAt ? Date.parse(a.workshopEnteredAt) : 0
-        const bt = b.workshopEnteredAt ? Date.parse(b.workshopEnteredAt) : 0
+      .sort((a, b) => {
+        const at = a?.workshopEnteredAt ? Date.parse(a.workshopEnteredAt) : 0
+        const bt = b?.workshopEnteredAt ? Date.parse(b.workshopEnteredAt) : 0
         return bt - at
       })
       .slice(0, limit)
 
     return NextResponse.json({ ok: true, invites })
   } catch (error: any) {
-    if (error?.message === 'Unauthorized') {
+    const message = String(error?.message || '')
+    if (message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (error?.message === 'ADMIN_SDK_NOT_CONFIGURED') {
-      console.error('[ADMIN_REVIEW_QUEUE] admin sdk not configured at verifyAdmin')
-      return NextResponse.json({ error: ADMIN_SDK_USER_ERROR }, { status: 500 })
+    if (isAdminSdkError(message)) {
+      console.error('[ADMIN_REVIEW_QUEUE] admin sdk not configured')
+      return NextResponse.json({ error: ADMIN_SDK_USER_ERROR_AR }, { status: 503 })
     }
-    console.error('[ADMIN_REVIEW_QUEUE] unexpected error')
+    console.error('[ADMIN_REVIEW_QUEUE] unexpected error:', message)
     return NextResponse.json({ error: 'Failed to load review queue' }, { status: 500 })
   }
 }
-

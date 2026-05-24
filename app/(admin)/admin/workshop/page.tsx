@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth/context'
+import { isAdminEmailClient } from '@/lib/auth/admin-access'
 import { Clock3, Search, SlidersHorizontal } from 'lucide-react'
 import { INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
 
@@ -42,7 +43,8 @@ function slaTone(hours: number | null) {
 }
 
 export default function AdminWorkshopCenterPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
+  const isAdmin = isAdminEmailClient(user?.email)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [invites, setInvites] = useState<WorkshopInvite[]>([])
@@ -52,26 +54,35 @@ export default function AdminWorkshopCenterPage() {
 
   useEffect(() => {
     const load = async () => {
-      if (!user) return
+      if (authLoading) return
+      if (!user || !isAdmin) {
+        setLoading(false)
+        return
+      }
       try {
         setLoading(true)
+        setError('')
         const token = await user.getIdToken()
         const q = searchQuery.trim()
         const endpoint = q
           ? `/api/admin/invitations/review?limit=200&q=${encodeURIComponent(q)}`
           : '/api/admin/invitations/review?limit=200'
-        const response = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } })
+        const response = await fetch(endpoint, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        })
         const data = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(data?.error || 'Failed to load workshop queue')
         setInvites(Array.isArray(data?.invites) ? data.invites : [])
       } catch (e: any) {
         setError(e?.message || 'Failed to load workshop queue')
+        setInvites([])
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [searchQuery, user])
+  }, [authLoading, isAdmin, searchQuery, user])
 
   const filtered = useMemo(() => {
     let rows = [...invites]
@@ -95,6 +106,14 @@ export default function AdminWorkshopCenterPage() {
     })
     return rows
   }, [invites, sortBy, statusFilter])
+
+  if (authLoading || loading) {
+    return <div className="p-8 text-center text-muted">جاري تحميل ورشة التأكد...</div>
+  }
+
+  if (!user || !isAdmin) {
+    return <div className="p-8 text-center text-muted">غير مصرح بالدخول.</div>
+  }
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
@@ -147,13 +166,7 @@ export default function AdminWorkshopCenterPage() {
 
       {error ? <div className="rounded-admin border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
-      {loading ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-72 animate-pulse rounded-admin-lg bg-admin-borderLight" />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

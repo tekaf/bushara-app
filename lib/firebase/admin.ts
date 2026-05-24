@@ -1,5 +1,6 @@
 import 'server-only'
-import { initializeApp, getApps, cert, App } from 'firebase-admin/app'
+import { readFileSync } from 'node:fs'
+import { initializeApp, getApps, cert, App, type ServiceAccount } from 'firebase-admin/app'
 import { getStorage, Storage } from 'firebase-admin/storage'
 import { getFirestore, Firestore } from 'firebase-admin/firestore'
 
@@ -23,7 +24,7 @@ function logAdminEnvDiagnostics() {
   })
 }
 
-function parseServiceAccountFromEnv(raw: string) {
+function parseServiceAccountFromEnv(raw: string): ServiceAccount {
   const attempts: string[] = []
   const trimmed = raw.trim()
 
@@ -35,6 +36,18 @@ function parseServiceAccountFromEnv(raw: string) {
     (trimmed.startsWith('"') && trimmed.endsWith('"'))
   ) {
     attempts.push(trimmed.slice(1, -1))
+  }
+
+  // Double-encoded JSON string (common in hosting dashboards).
+  if (trimmed.startsWith('"') && trimmed.includes('\\"')) {
+    try {
+      const unquoted = JSON.parse(trimmed) as string
+      if (typeof unquoted === 'string' && unquoted.trim().startsWith('{')) {
+        attempts.push(unquoted.trim())
+      }
+    } catch {
+      // Continue.
+    }
   }
 
   // Common issue: private_key includes literal newlines instead of escaped \n.
@@ -57,13 +70,39 @@ function parseServiceAccountFromEnv(raw: string) {
 
   for (const candidate of attempts) {
     try {
-      return JSON.parse(candidate)
+      const parsed = JSON.parse(candidate) as ServiceAccount
+      if (parsed?.projectId && parsed?.privateKey && parsed?.clientEmail) {
+        return parsed
+      }
+      const legacy = parsed as ServiceAccount & {
+        project_id?: string
+        private_key?: string
+        client_email?: string
+      }
+      if (legacy?.project_id && legacy?.private_key && legacy?.client_email) {
+        return {
+          projectId: legacy.project_id,
+          privateKey: legacy.private_key,
+          clientEmail: legacy.client_email,
+        }
+      }
     } catch {
       // Continue to next parse strategy.
     }
   }
 
   throw new Error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY')
+}
+
+function resolveProjectId(serviceAccount?: ServiceAccount | null) {
+  return (
+    String(process.env.FIREBASE_PROJECT_ID || '').trim() ||
+    String(process.env.GOOGLE_CLOUD_PROJECT || '').trim() ||
+    String(process.env.GCLOUD_PROJECT || '').trim() ||
+    String(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '').trim() ||
+    String(serviceAccount?.projectId || '').trim() ||
+    ''
+  )
 }
 
 export function getAdminApp(): App | null {
@@ -82,29 +121,45 @@ export function getAdminApp(): App | null {
     }
 
     // Try to get service account from environment
-    const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
-    const projectId =
-      process.env.FIREBASE_PROJECT_ID ||
-      process.env.GOOGLE_CLOUD_PROJECT ||
-      process.env.GCLOUD_PROJECT ||
-      process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    
+    const serviceAccountKey = String(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '').trim()
+    const serviceAccountPath = String(
+      process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
+        process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+        ''
+    ).trim()
+
+    let serviceAccount: ServiceAccount | null = null
+
     if (serviceAccountKey) {
       try {
-        const serviceAccount =
-          typeof serviceAccountKey === 'string'
-            ? parseServiceAccountFromEnv(serviceAccountKey)
-            : serviceAccountKey
+        serviceAccount = parseServiceAccountFromEnv(serviceAccountKey)
+      } catch (e: any) {
+        console.error('[FIREBASE_ADMIN] service account parse failed:', e?.message || e)
+      }
+    } else if (serviceAccountPath) {
+      try {
+        const raw = readFileSync(serviceAccountPath, 'utf8')
+        serviceAccount = parseServiceAccountFromEnv(raw)
+      } catch (e: any) {
+        console.error('[FIREBASE_ADMIN] service account file read failed:', e?.message || e)
+      }
+    }
 
+    const projectId = resolveProjectId(serviceAccount)
+
+    if (serviceAccount) {
+      try {
         adminApp = initializeApp({
           credential: cert(serviceAccount),
-          projectId,
+          projectId: projectId || serviceAccount.projectId,
           storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
         })
-        console.info('[FIREBASE_ADMIN] initializeApp success via service account')
+        console.info('[FIREBASE_ADMIN] initializeApp success via service account', {
+          projectId: projectId || serviceAccount.projectId,
+        })
         return adminApp
-      } catch (e) {
-        console.error('[FIREBASE_ADMIN] service account initialization failed')
+      } catch (e: any) {
+        console.error('[FIREBASE_ADMIN] service account initialization failed:', e?.message || e)
       }
     }
 
@@ -122,7 +177,7 @@ export function getAdminApp(): App | null {
 
     try {
       adminApp = initializeApp({
-        projectId,
+        projectId: projectId || undefined,
         storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
       })
       console.info('[FIREBASE_ADMIN] initializeApp success via default credentials')
@@ -183,8 +238,12 @@ export function getAdminFirestore(): Firestore | null {
   try {
     adminFirestore = getFirestore(app)
     return adminFirestore
-  } catch (error) {
-    console.error('[FIREBASE_ADMIN] failed to get firestore')
+  } catch (error: any) {
+    console.error('[FIREBASE_ADMIN] failed to get firestore:', error?.message || error)
     return null
   }
+}
+
+export function isAdminSdkConfigured(): boolean {
+  return Boolean(getAdminApp() && getAdminFirestore())
 }

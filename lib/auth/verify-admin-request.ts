@@ -3,10 +3,18 @@ import { getAuth } from 'firebase-admin/auth'
 import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
 import { isAdminEmailServer } from '@/lib/auth/admin-access'
 
+export const ADMIN_SDK_USER_ERROR_AR =
+  'تعذر تحميل قائمة المراجعة بسبب مشكلة في إعدادات الخادم. يرجى التحقق من إعدادات Firebase Admin (FIREBASE_SERVICE_ACCOUNT_KEY).'
+
 export type VerifiedAdminContext = {
   uid: string
   email: string
   adminDb: FirebaseFirestore.Firestore
+}
+
+export function isAdminSdkError(message: string | undefined | null) {
+  const value = String(message || '').toLowerCase()
+  return value.includes('admin sdk not configured') || value.includes('admin_sdk_not_configured')
 }
 
 export async function verifyAdminRequest(request: NextRequest): Promise<VerifiedAdminContext> {
@@ -16,10 +24,16 @@ export async function verifyAdminRequest(request: NextRequest): Promise<Verified
 
   const app = getAdminApp()
   const adminDb = getAdminFirestore()
-  if (!app || !adminDb) throw new Error('Admin SDK not configured')
+  if (!app || !adminDb) throw new Error('ADMIN_SDK_NOT_CONFIGURED')
 
   const auth = getAuth(app)
-  const decoded = await auth.verifyIdToken(token)
+  let decoded
+  try {
+    decoded = await auth.verifyIdToken(token)
+  } catch {
+    throw new Error('Unauthorized')
+  }
+
   if (!decoded?.uid) throw new Error('Unauthorized')
 
   const email = decoded.email || (await auth.getUser(decoded.uid)).email || ''
