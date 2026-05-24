@@ -1,12 +1,14 @@
 import { getAdminEmailsForServer } from '@/lib/auth/admin-access'
-
-const WORKSHOP_PRIMARY_RECIPIENT = 'tekafplus@gmail.com'
+import { sendEmail } from '@/lib/notifications/email'
 
 type WorkshopEmailInput = {
   inviteId: string
   orderNumber: string
   customerName: string
+  phoneNumber: string
   occasionType: string
+  packageLabel: string
+  amountSar: number
   reviewUrl: string
 }
 
@@ -18,7 +20,10 @@ function formatHtml(input: WorkshopEmailInput) {
       <ul style="padding-right: 18px;">
         <li><strong>رقم الطلب:</strong> ${input.orderNumber}</li>
         <li><strong>اسم المستخدم:</strong> ${input.customerName}</li>
+        <li><strong>رقم الجوال:</strong> ${input.phoneNumber || '-'}</li>
         <li><strong>نوع المناسبة:</strong> ${input.occasionType}</li>
+        <li><strong>الباقة:</strong> ${input.packageLabel || '-'}</li>
+        <li><strong>المبلغ:</strong> ${input.amountSar || 0} ر.س</li>
         <li><strong>رقم الدعوة:</strong> ${input.inviteId}</li>
       </ul>
       <p style="margin-top: 14px;">
@@ -35,47 +40,31 @@ function formatText(input: WorkshopEmailInput) {
     'تم تسجيل نجاح الدفع، والدعوة بانتظار مراجعة الإدارة.',
     `رقم الطلب: ${input.orderNumber}`,
     `اسم المستخدم: ${input.customerName}`,
+    `رقم الجوال: ${input.phoneNumber || '-'}`,
     `نوع المناسبة: ${input.occasionType}`,
+    `الباقة: ${input.packageLabel || '-'}`,
+    `المبلغ: ${input.amountSar || 0} ر.س`,
     `رقم الدعوة: ${input.inviteId}`,
     `رابط المراجعة: ${input.reviewUrl}`,
   ].join('\n')
 }
 
 export async function sendWorkshopReviewEmail(input: WorkshopEmailInput) {
+  const notifyEmail = String(process.env.ADMIN_NOTIFY_EMAIL || '')
+    .trim()
+    .toLowerCase()
   const recipients = Array.from(
-    new Set([WORKSHOP_PRIMARY_RECIPIENT, ...getAdminEmailsForServer()].map((email) => String(email).trim().toLowerCase()).filter(Boolean))
+    new Set([notifyEmail, ...getAdminEmailsForServer()].map((email) => String(email).trim().toLowerCase()).filter(Boolean))
   )
   if (!recipients.length) {
     throw new Error('No admin recipients configured')
   }
-
-  const resendApiKey = process.env.RESEND_API_KEY || ''
-  const sender = process.env.RESEND_FROM_EMAIL || 'Busharh <no-reply@busharh.com>'
-  if (!resendApiKey) {
-    console.warn('[WORKSHOP][EMAIL] RESEND_API_KEY not configured; email send skipped.')
-    return { delivered: false, recipients }
-  }
-
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: sender,
-      to: recipients,
-      subject: `ورشة التأكد - طلب ${input.orderNumber}`,
-      html: formatHtml(input),
-      text: formatText(input),
-    }),
+  const result = await sendEmail({
+    to: recipients,
+    subject: `طلب مدفوع جديد - ${input.orderNumber}`,
+    html: formatHtml(input),
+    text: formatText(input),
   })
-
-  if (!response.ok) {
-    const payload = await response.text()
-    throw new Error(`Failed to send admin email: ${response.status} ${payload}`)
-  }
-
-  return { delivered: true, recipients }
+  return { delivered: result.delivered, recipients }
 }
 

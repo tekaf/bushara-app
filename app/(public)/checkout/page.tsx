@@ -22,6 +22,10 @@ type CheckoutDraft = {
   formData: Record<string, any>
   finalUrl?: string | null
   previewUrl?: string | null
+  phoneNumber?: string
+  phoneLocal?: string
+  phoneVerified?: boolean
+  phoneVerifiedAt?: string
 }
 
 type TimePeriod = 'AM' | 'PM'
@@ -199,7 +203,17 @@ export default function CheckoutPage() {
     const raw = window.sessionStorage.getItem('bushara_checkout_draft')
     if (!raw) return
     try {
-      setDraft(JSON.parse(raw))
+      const parsed = JSON.parse(raw) as CheckoutDraft
+      setDraft(parsed)
+      if (parsed.phoneLocal) setPhoneInput((prev) => prev || parsed.phoneLocal || '')
+      if (parsed.phoneVerified && parsed.phoneNumber) {
+        const normalized = normalizeSaudiPhone(parsed.phoneNumber)
+        if (normalized.ok) {
+          setPhoneVerified(true)
+          setVerifiedPhoneE164(normalized.e164)
+          setVerifiedPhoneLocal(parsed.phoneLocal || normalized.local)
+        }
+      }
     } catch (error) {
       console.error('Invalid checkout draft')
     }
@@ -236,8 +250,33 @@ export default function CheckoutPage() {
     }
     const parsed = normalizeSaudiPhone(linkedPhoneRaw)
     if (!parsed.ok) return
-    if (!phoneInput) setPhoneInput(parsed.local)
+    setPhoneInput((prev) => prev || parsed.local)
   }, [user?.phoneNumber])
+
+  useEffect(() => {
+    const loadPhoneVerificationFromProfile = async () => {
+      if (!user) return
+      try {
+        const userSnap = await getDoc(doc(db, 'users', user.uid))
+        if (!userSnap.exists()) return
+        const userData = userSnap.data() as any
+        const profilePhoneRaw = String(userData?.phoneNumber || userData?.customerPhoneE164 || '').trim()
+        const profileVerified = Boolean(userData?.phoneVerified)
+        if (!profilePhoneRaw) return
+        const parsed = normalizeSaudiPhone(profilePhoneRaw)
+        if (!parsed.ok) return
+        setPhoneInput((prev) => prev || parsed.local)
+        if (profileVerified) {
+          setPhoneVerified(true)
+          setVerifiedPhoneE164(parsed.e164)
+          setVerifiedPhoneLocal(parsed.local)
+        }
+      } catch (error) {
+        console.error('Failed loading phone verification profile:', error)
+      }
+    }
+    loadPhoneVerificationFromProfile()
+  }, [user])
 
   useEffect(() => {
     if (!otpVerificationId) return
@@ -290,6 +329,37 @@ export default function CheckoutPage() {
 
   const normalizedPhone = normalizeSaudiPhone(phoneInput)
   const otpStep = otpVerificationId ? 2 : 1
+
+  const persistPhoneVerificationArtifacts = async (phoneE164: string, phoneLocal: string) => {
+    const verifiedAtIso = new Date().toISOString()
+    if (draft) {
+      const nextDraft: CheckoutDraft = {
+        ...draft,
+        phoneNumber: phoneE164,
+        phoneLocal,
+        phoneVerified: true,
+        phoneVerifiedAt: verifiedAtIso,
+      }
+      setDraft(nextDraft)
+      window.sessionStorage.setItem('bushara_checkout_draft', JSON.stringify(nextDraft))
+    }
+    if (!user) return
+    try {
+      await setDoc(
+        doc(db, 'users', user.uid),
+        {
+          phoneNumber: phoneE164,
+          phoneLocal,
+          phoneVerified: true,
+          phoneVerifiedAt: new Date(),
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      )
+    } catch (error) {
+      console.error('Failed persisting phone verification on user profile:', error)
+    }
+  }
 
   const handleOpenPhoneVerifyModal = () => {
     if (authLoading) return
@@ -384,6 +454,7 @@ export default function CheckoutPage() {
       setPhoneVerified(true)
       setVerifiedPhoneE164(normalized.e164)
       setVerifiedPhoneLocal(normalized.local)
+      await persistPhoneVerificationArtifacts(normalized.e164, normalized.local)
       setOtpStatus('تم توثيق رقم الجوال بنجاح.')
       return true
     } catch (error: any) {
@@ -420,6 +491,7 @@ export default function CheckoutPage() {
     setPhoneVerified(true)
     setVerifiedPhoneE164(normalizedPhone.e164)
     setVerifiedPhoneLocal(normalizedPhone.local)
+    await persistPhoneVerificationArtifacts(normalizedPhone.e164, normalizedPhone.local)
     await handleStartPaymentFlow({
       phoneE164: normalizedPhone.e164,
       phoneLocal: normalizedPhone.local,
@@ -445,7 +517,7 @@ export default function CheckoutPage() {
     const effectivePhoneLocal =
       overridePhone?.phoneLocal || verifiedPhoneLocal || (normalizedPhone.ok ? normalizedPhone.local : '')
     if (!effectivePhoneE164) {
-      alert('يرجى توثيق رقم الجوال عبر OTP قبل تأكيد الدفع.')
+      alert('يرجى تأكيد رقم الجوال قبل المتابعة للدفع')
       return
     }
     if (paying) return
@@ -721,7 +793,7 @@ export default function CheckoutPage() {
     const effectivePhoneLocal =
       overridePhone?.phoneLocal || verifiedPhoneLocal || (normalizedPhone.ok ? normalizedPhone.local : '')
     if (!effectivePhoneE164) {
-      setPaymentError('يرجى توثيق رقم الجوال قبل المتابعة.')
+      setPaymentError('يرجى تأكيد رقم الجوال قبل المتابعة للدفع')
       return
     }
     setPaymentError('')

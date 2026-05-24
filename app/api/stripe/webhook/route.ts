@@ -3,6 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore'
 import type Stripe from 'stripe'
 import { getAdminFirestore } from '@/lib/firebase/admin'
 import { getStripeServerClient, isStripeWebhookConfigured } from '@/lib/stripe/server'
+import { sendWorkshopReviewEmail } from '@/lib/notifications/admin-workshop-email'
 
 // Disable body parsing - we need raw body for signature verification
 export const runtime = 'nodejs'
@@ -64,6 +65,45 @@ export async function POST(req: NextRequest) {
           },
           { merge: true }
         )
+
+        try {
+          const createdByUid = String(metadata?.createdByUid || '').trim()
+          const userSnap = createdByUid ? await adminDb.collection('users').doc(createdByUid).get() : null
+          const userData = userSnap?.exists ? (userSnap.data() as any) : {}
+          const customerName =
+            String(userData?.name || '').trim() ||
+            String(userData?.email || '').trim() ||
+            (createdByUid ? `uid:${createdByUid}` : 'مستخدم غير معروف')
+          const phoneNumber = String(userData?.phoneLocal || userData?.phoneNumber || '').trim()
+          const packageSize = String(metadata?.packageSize || '').trim()
+          const packagePrice = Number(metadata?.packagePrice || 0)
+
+          const notifyResult = await sendWorkshopReviewEmail({
+            inviteId: String(metadata?.giftId || session.id),
+            orderNumber: `GIFT-${String(metadata?.giftId || session.id).slice(0, 8)}`,
+            customerName,
+            phoneNumber,
+            occasionType: 'شراء باقة هدية',
+            packageLabel: packageSize ? `${packageSize} ضيف` : '-',
+            amountSar: packagePrice,
+            reviewUrl: `${req.nextUrl.origin}/admin`,
+          })
+
+          await adminDb.collection('admin_notifications').add({
+            type: 'gift_package_paid',
+            giftId: String(metadata?.giftId || ''),
+            stripeCheckoutSessionId: session.id,
+            customerName,
+            phoneNumber,
+            packageSize,
+            packagePrice,
+            emailDelivered: Boolean(notifyResult?.delivered),
+            recipients: notifyResult?.recipients || [],
+            createdAt: FieldValue.serverTimestamp(),
+          })
+        } catch (notifyErr: any) {
+          console.error('[STRIPE][WEBHOOK] gift admin notification failed:', notifyErr?.message || notifyErr)
+        }
       }
     }
 

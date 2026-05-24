@@ -8,6 +8,7 @@ import {
   getWorkflowTransitionError,
 } from '@/lib/invitations/workflow'
 import { sendWorkshopReviewEmail } from '@/lib/notifications/admin-workshop-email'
+import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
 
 export const runtime = 'nodejs'
 
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
     if (String(invite?.ownerId || '') !== decoded.uid) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+    const orderFoundation = await ensureInviteOrderFoundation(adminDb, inviteId)
     const currentWorkflow = String(invite?.workflowStatus || '')
     const alreadyInWorkshop = currentWorkflow === INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW
     const transitionError = getWorkflowTransitionError(currentWorkflow, INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW)
@@ -68,8 +70,14 @@ export async function POST(request: NextRequest) {
       String(decoded.name || '').trim() ||
       String(decoded.email || '').split('@')[0] ||
       'مستخدم بشاره'
-    const orderNumber = String(invite?.orderNumber || `BSH-${inviteId.slice(0, 8)}`).trim()
+    const phoneNumber = String(
+      invite?.customerPhoneLocal || invite?.customerPhoneE164 || userData?.phoneLocal || userData?.phoneNumber || ''
+    ).trim()
+    const orderNumber = String(orderFoundation.orderCode || invite?.orderCode || invite?.orderNumber || '').trim()
     const occasionType = normalizeOccasion(String(invite?.selectedOccasion || invite?.occasionType || ''))
+    const packageGuests = Number(invite?.packageGuests || 0)
+    const packageLabel = packageGuests > 0 ? `${packageGuests} ضيف` : '-'
+    const amountSar = Number(invite?.packagePrice || 0)
     const reviewUrl = `${request.nextUrl.origin}/admin/invitations/review/${encodeURIComponent(inviteId)}`
 
     await adminDb.collection('invitation_internal').doc(inviteId).set(
@@ -100,6 +108,7 @@ export async function POST(request: NextRequest) {
     if (!alreadyInWorkshop) {
       await adminDb.collection('invitation_reviews').add({
         inviteId,
+        orderCode: orderNumber,
         action: 'entered_workshop',
         notes: 'Payment confirmed. Invitation entered workshop confirmation.',
         createdAt: FieldValue.serverTimestamp(),
@@ -117,7 +126,10 @@ export async function POST(request: NextRequest) {
           inviteId,
           orderNumber,
           customerName,
+          phoneNumber,
           occasionType,
+          packageLabel,
+          amountSar,
           reviewUrl,
         })
         mailDelivered = mailResult.delivered
@@ -130,6 +142,7 @@ export async function POST(request: NextRequest) {
       await adminDb.collection('admin_notifications').add({
         type: 'workshop_review_required',
         inviteId,
+        orderCode: orderNumber,
         orderNumber,
         customerName,
         occasionType,
