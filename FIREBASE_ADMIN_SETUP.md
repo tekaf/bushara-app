@@ -1,79 +1,98 @@
 # إعداد Firebase Admin SDK
 
 ## المشكلة
-Firebase Admin SDK غير مهيأ، لذلك الرفع يفشل.
+ورشة التأكد والعمليات الإدارية تحتاج **Firebase Admin SDK** على الخادم (Vercel / local).
 
-## الحل: إعداد Service Account
+---
 
-### الخطوة 1: الحصول على Service Account Key
+## الطريقة الموصى بها لـ Vercel (الأسهل)
 
-1. اذهب إلى Firebase Console: https://console.firebase.google.com/
-2. اختر المشروع: **bushara-2df7e**
-3. اذهب إلى **Project Settings** (⚙️ في الأعلى)
-4. اضغط على تبويب **Service Accounts**
-5. اضغط على **Generate new private key**
-6. سيتم تحميل ملف JSON - احفظه
+من ملف JSON الذي حمّلته من Firebase Console، أضف **3 متغيرات** في Vercel → Settings → Environment Variables:
 
-### الخطوة 2: إضافة إلى .env.local
+| المتغير | القيمة |
+|---------|--------|
+| `FIREBASE_ADMIN_PROJECT_ID` | `bushara-2df7e` (من `project_id`) |
+| `FIREBASE_ADMIN_CLIENT_EMAIL` | من `client_email` |
+| `FIREBASE_ADMIN_PRIVATE_KEY` | من `private_key` كاملًا (مع BEGIN/END) |
 
-1. افتح ملف `.env.local` في المشروع
-2. أضف هذا السطر:
+**مهم لـ `FIREBASE_ADMIN_PRIVATE_KEY`:**
+- الصق المفتاح كما هو من JSON (يمكن سطر واحد مع `\n`)
+- أو الصقه متعدد الأسطر في محرر Vercel
+
+ثم **Redeploy** المشروع.
+
+---
+
+## طريقة بديلة: Base64 (موصى بها إذا فشل JSON)
+
+### 1) حوّل ملف JSON إلى Base64
+
+**PowerShell (Windows):**
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\service-account.json"))
+```
+
+**Mac/Linux:**
+```bash
+base64 -i service-account.json | tr -d '\n'
+```
+
+### 2) أضف في Vercel
+
+```
+FIREBASE_SERVICE_ACCOUNT_BASE64=<الناتج بدون أسطر فارغة>
+```
+
+---
+
+## طريقة محلية: `.env.local`
+
+### خيار A — JSON سطر واحد
 
 ```env
 FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"bushara-2df7e",...}
 ```
 
-**مهم:** انسخ **كل** محتوى ملف JSON وضعه بين علامات الاقتباس.
-
-**أو** يمكنك استخدام طريقة أخرى:
+### خيار B — المتغيرات المنفصلة
 
 ```env
-FIREBASE_SERVICE_ACCOUNT_KEY='{"type":"service_account","project_id":"bushara-2df7e",...}'
+FIREBASE_ADMIN_PROJECT_ID=bushara-2df7e
+FIREBASE_ADMIN_CLIENT_EMAIL=firebase-adminsdk-xxxxx@bushara-2df7e.iam.gserviceaccount.com
+FIREBASE_ADMIN_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 ```
 
-### الخطوة 3: إعادة تشغيل الخادم
-
-1. أوقف الخادم (Ctrl+C)
-2. أعد تشغيله: `npm run dev`
-3. انتظر حتى يبدأ
-4. جرب رفع ملف مرة أخرى
-
----
-
-## مثال على .env.local:
+### خيار C — ملف JSON
 
 ```env
-NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=bushara-2df7e.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=bushara-2df7e
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=bushara-2df7e.firebasestorage.app
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
-
-FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"bushara-2df7e","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"...","client_id":"...","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"..."}
+FIREBASE_SERVICE_ACCOUNT_PATH=C:\path\to\service-account.json
 ```
 
 ---
 
-## ملاحظات مهمة:
+## التحقق
 
-1. **لا ترفع ملف `.env.local` إلى Git** - إنه في `.gitignore`
-2. **Service Account Key حساس** - لا تشاركه مع أحد
-3. **بعد إضافة المفتاح، أعد تشغيل الخادم**
-4. **Admin SDK يتجاوز جميع قواعد الأمان** - هذا هو الحل النهائي
+```bash
+npm run check:firebase-admin
+```
+
+أو بعد تسجيل الدخول كأدمن:
+
+`GET /api/admin/system/firebase-status`
+
+يجب أن يظهر: `configured: true`
 
 ---
 
-## التحقق من أن كل شيء يعمل:
+## الحصول على الملف من Firebase
 
-بعد إضافة Service Account Key وإعادة تشغيل الخادم، يجب أن ترى في console:
+1. [Firebase Console](https://console.firebase.google.com/) → مشروع **bushara-2df7e**
+2. ⚙️ Project Settings → **Service accounts**
+3. **Generate new private key** → حمّل JSON
 
-```
-✅ Firebase Admin initialized with service account
-```
+---
 
-ثم عند رفع ملف:
+## ملاحظات
 
-```
-✅ File uploaded successfully using Admin SDK: https://storage.googleapis.com/...
-```
+- لا ترفع `.env.local` أو ملف JSON إلى Git
+- بعد أي تعديل على المتغيرات في Vercel: **Redeploy إلزامي**
+- `FIREBASE_SERVICE_ACCOUNT_KEY` كسطر JSON طويل قد ينكسر على بعض لوحات Vercel — استخدم الطريقة المنفصلة أو Base64

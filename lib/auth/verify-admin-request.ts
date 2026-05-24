@@ -4,7 +4,7 @@ import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
 import { isAdminEmailServer } from '@/lib/auth/admin-access'
 
 export const ADMIN_SDK_USER_ERROR_AR =
-  'تعذر تحميل قائمة المراجعة بسبب مشكلة في إعدادات الخادم. يرجى التحقق من إعدادات Firebase Admin (FIREBASE_SERVICE_ACCOUNT_KEY).'
+  'تعذر تحميل قائمة المراجعة: إعدادات Firebase Admin غير صحيحة على الخادم. أضف مفاتيح FIREBASE_ADMIN_* أو FIREBASE_SERVICE_ACCOUNT_BASE64 في Vercel ثم أعد النشر.'
 
 export type VerifiedAdminContext = {
   uid: string

@@ -1,106 +1,43 @@
 import 'server-only'
-import { readFileSync } from 'node:fs'
-import { initializeApp, getApps, cert, App, type ServiceAccount } from 'firebase-admin/app'
+import { initializeApp, getApps, cert, App } from 'firebase-admin/app'
 import { getStorage, Storage } from 'firebase-admin/storage'
 import { getFirestore, Firestore } from 'firebase-admin/firestore'
+import { loadServiceAccountFromEnvironment } from '@/lib/firebase/service-account'
 
 let adminApp: App | null = null
 let adminStorage: Storage | null = null
 let adminFirestore: Firestore | null = null
 let adminInitDiagnosticsLogged = false
+let lastLoadError: string | null = null
 
 function logAdminEnvDiagnostics() {
   if (adminInitDiagnosticsLogged) return
   adminInitDiagnosticsLogged = true
-  const hasServiceAccountKey = Boolean(String(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '').trim())
-  const hasFirebaseProjectId = Boolean(String(process.env.FIREBASE_PROJECT_ID || '').trim())
-  const hasGoogleCloudProject = Boolean(String(process.env.GOOGLE_CLOUD_PROJECT || '').trim())
-  const hasGCloudProject = Boolean(String(process.env.GCLOUD_PROJECT || '').trim())
+
+  const loaded = loadServiceAccountFromEnvironment()
   console.info('[FIREBASE_ADMIN] env check', {
-    hasServiceAccountKey,
-    hasFirebaseProjectId,
-    hasGoogleCloudProject,
-    hasGCloudProject,
+    hasSplitCredentials: Boolean(
+      process.env.FIREBASE_ADMIN_PROJECT_ID &&
+        process.env.FIREBASE_ADMIN_CLIENT_EMAIL &&
+        process.env.FIREBASE_ADMIN_PRIVATE_KEY
+    ),
+    hasBase64: Boolean(String(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || '').trim()),
+    hasJsonKey: Boolean(String(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '').trim()),
+    hasFilePath: Boolean(
+      String(process.env.FIREBASE_SERVICE_ACCOUNT_PATH || process.env.GOOGLE_APPLICATION_CREDENTIALS || '').trim()
+    ),
+    loadSource: loaded.source,
+    loadError: loaded.error,
   })
 }
 
-function parseServiceAccountFromEnv(raw: string): ServiceAccount {
-  const attempts: string[] = []
-  const trimmed = raw.trim()
-
-  attempts.push(trimmed)
-
-  // Some shells store JSON as a quoted string in env files.
-  if (
-    (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
-    (trimmed.startsWith('"') && trimmed.endsWith('"'))
-  ) {
-    attempts.push(trimmed.slice(1, -1))
-  }
-
-  // Double-encoded JSON string (common in hosting dashboards).
-  if (trimmed.startsWith('"') && trimmed.includes('\\"')) {
-    try {
-      const unquoted = JSON.parse(trimmed) as string
-      if (typeof unquoted === 'string' && unquoted.trim().startsWith('{')) {
-        attempts.push(unquoted.trim())
-      }
-    } catch {
-      // Continue.
-    }
-  }
-
-  // Common issue: private_key includes literal newlines instead of escaped \n.
-  attempts.push(
-    trimmed.replace(/"private_key"\s*:\s*"([\s\S]*?)"/m, (_full, keyValue: string) => {
-      const escaped = keyValue.replace(/\r?\n/g, '\\n')
-      return `"private_key":"${escaped}"`
-    })
-  )
-
-  // Some deployments store the service account as base64-encoded JSON.
-  try {
-    const decoded = Buffer.from(trimmed, 'base64').toString('utf8').trim()
-    if (decoded.startsWith('{') && decoded.endsWith('}')) {
-      attempts.push(decoded)
-    }
-  } catch {
-    // Ignore base64 decode attempts and continue parse strategies.
-  }
-
-  for (const candidate of attempts) {
-    try {
-      const parsed = JSON.parse(candidate) as ServiceAccount
-      if (parsed?.projectId && parsed?.privateKey && parsed?.clientEmail) {
-        return parsed
-      }
-      const legacy = parsed as ServiceAccount & {
-        project_id?: string
-        private_key?: string
-        client_email?: string
-      }
-      if (legacy?.project_id && legacy?.private_key && legacy?.client_email) {
-        return {
-          projectId: legacy.project_id,
-          privateKey: legacy.private_key,
-          clientEmail: legacy.client_email,
-        }
-      }
-    } catch {
-      // Continue to next parse strategy.
-    }
-  }
-
-  throw new Error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY')
-}
-
-function resolveProjectId(serviceAccount?: ServiceAccount | null) {
+function resolveProjectId(projectIdFromAccount?: string) {
   return (
     String(process.env.FIREBASE_PROJECT_ID || '').trim() ||
     String(process.env.GOOGLE_CLOUD_PROJECT || '').trim() ||
     String(process.env.GCLOUD_PROJECT || '').trim() ||
     String(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '').trim() ||
-    String(serviceAccount?.projectId || '').trim() ||
+    String(projectIdFromAccount || '').trim() ||
     ''
   )
 }
@@ -112,7 +49,7 @@ export function getAdminApp(): App | null {
 
   try {
     logAdminEnvDiagnostics()
-    // Check if already initialized
+
     const existingApps = getApps()
     if (existingApps.length > 0) {
       adminApp = existingApps[0]
@@ -120,50 +57,26 @@ export function getAdminApp(): App | null {
       return adminApp
     }
 
-    // Try to get service account from environment
-    const serviceAccountKey = String(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '').trim()
-    const serviceAccountPath = String(
-      process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
-        process.env.GOOGLE_APPLICATION_CREDENTIALS ||
-        ''
-    ).trim()
+    const loaded = loadServiceAccountFromEnvironment()
+    lastLoadError = loaded.error
 
-    let serviceAccount: ServiceAccount | null = null
-
-    if (serviceAccountKey) {
-      try {
-        serviceAccount = parseServiceAccountFromEnv(serviceAccountKey)
-      } catch (e: any) {
-        console.error('[FIREBASE_ADMIN] service account parse failed:', e?.message || e)
-      }
-    } else if (serviceAccountPath) {
-      try {
-        const raw = readFileSync(serviceAccountPath, 'utf8')
-        serviceAccount = parseServiceAccountFromEnv(raw)
-      } catch (e: any) {
-        console.error('[FIREBASE_ADMIN] service account file read failed:', e?.message || e)
-      }
-    }
-
-    const projectId = resolveProjectId(serviceAccount)
-
-    if (serviceAccount) {
+    if (loaded.account) {
+      const projectId = resolveProjectId(loaded.account.projectId)
       try {
         adminApp = initializeApp({
-          credential: cert(serviceAccount),
-          projectId: projectId || serviceAccount.projectId,
+          credential: cert(loaded.account),
+          projectId: projectId || loaded.account.projectId,
           storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
         })
-        console.info('[FIREBASE_ADMIN] initializeApp success via service account', {
-          projectId: projectId || serviceAccount.projectId,
-        })
+        lastLoadError = null
+        console.info('[FIREBASE_ADMIN] initializeApp success', { source: loaded.source, projectId })
         return adminApp
       } catch (e: any) {
-        console.error('[FIREBASE_ADMIN] service account initialization failed:', e?.message || e)
+        lastLoadError = e?.message || 'initializeApp failed'
+        console.error('[FIREBASE_ADMIN] service account initialization failed:', lastLoadError)
       }
     }
 
-    // Fallback: Try default credentials only when environment likely has ADC configured.
     const hasAdcHint =
       Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS) ||
       Boolean(process.env.GOOGLE_CLOUD_PROJECT) ||
@@ -171,23 +84,26 @@ export function getAdminApp(): App | null {
       Boolean(process.env.K_SERVICE)
 
     if (!hasAdcHint) {
-      console.error('[FIREBASE_ADMIN] not configured: missing service account and no ADC hints')
+      console.error('[FIREBASE_ADMIN] not configured:', lastLoadError || 'missing credentials')
       return null
     }
 
     try {
       adminApp = initializeApp({
-        projectId: projectId || undefined,
+        projectId: resolveProjectId() || undefined,
         storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
       })
+      lastLoadError = null
       console.info('[FIREBASE_ADMIN] initializeApp success via default credentials')
       return adminApp
-    } catch (e) {
-      console.error('[FIREBASE_ADMIN] default credentials initialization failed')
+    } catch (e: any) {
+      lastLoadError = e?.message || 'default credentials failed'
+      console.error('[FIREBASE_ADMIN] default credentials initialization failed:', lastLoadError)
       return null
     }
-  } catch (error) {
-    console.error('[FIREBASE_ADMIN] initialization error')
+  } catch (error: any) {
+    lastLoadError = error?.message || 'unknown initialization error'
+    console.error('[FIREBASE_ADMIN] initialization error:', lastLoadError)
     return null
   }
 }
@@ -246,4 +162,23 @@ export function getAdminFirestore(): Firestore | null {
 
 export function isAdminSdkConfigured(): boolean {
   return Boolean(getAdminApp() && getAdminFirestore())
+}
+
+export function getAdminSdkStatus() {
+  const loaded = loadServiceAccountFromEnvironment()
+  const app = getAdminApp()
+  const db = getAdminFirestore()
+  return {
+    configured: Boolean(app && db),
+    loadSource: loaded.source,
+    loadError: loaded.error || lastLoadError,
+    projectId: resolveProjectId(loaded.account?.projectId),
+    hasSplitCredentials: Boolean(
+      process.env.FIREBASE_ADMIN_PROJECT_ID &&
+        process.env.FIREBASE_ADMIN_CLIENT_EMAIL &&
+        process.env.FIREBASE_ADMIN_PRIVATE_KEY
+    ),
+    hasBase64: Boolean(String(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || '').trim()),
+    hasJsonKey: Boolean(String(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '').trim()),
+  }
 }

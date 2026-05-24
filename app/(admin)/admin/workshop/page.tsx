@@ -164,7 +164,19 @@ export default function AdminWorkshopCenterPage() {
         ))}
       </section>
 
-      {error ? <div className="rounded-admin border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+      {error ? (
+        <div className="rounded-admin border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-800">
+          <p className="font-semibold">{error}</p>
+          {error.includes('Firebase Admin') || error.includes('FIREBASE') ? (
+            <ul className="mt-3 list-disc space-y-1 pr-5 text-xs leading-relaxed">
+              <li>في Vercel أضف: FIREBASE_ADMIN_PROJECT_ID + FIREBASE_ADMIN_CLIENT_EMAIL + FIREBASE_ADMIN_PRIVATE_KEY</li>
+              <li>أو استخدم FIREBASE_SERVICE_ACCOUNT_BASE64 (أوثق في FIREBASE_ADMIN_SETUP.md)</li>
+              <li>بعد الحفظ: Redeploy للمشروع</li>
+              <li>محليًا: npm run check:firebase-admin</li>
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
 
       {filtered.length === 0 ? (
         <EmptyState />
