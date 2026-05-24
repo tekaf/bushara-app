@@ -1,3 +1,4 @@
+import 'server-only'
 import { initializeApp, getApps, cert, App } from 'firebase-admin/app'
 import { getStorage, Storage } from 'firebase-admin/storage'
 import { getFirestore, Firestore } from 'firebase-admin/firestore'
@@ -5,6 +6,22 @@ import { getFirestore, Firestore } from 'firebase-admin/firestore'
 let adminApp: App | null = null
 let adminStorage: Storage | null = null
 let adminFirestore: Firestore | null = null
+let adminInitDiagnosticsLogged = false
+
+function logAdminEnvDiagnostics() {
+  if (adminInitDiagnosticsLogged) return
+  adminInitDiagnosticsLogged = true
+  const hasServiceAccountKey = Boolean(String(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '').trim())
+  const hasFirebaseProjectId = Boolean(String(process.env.FIREBASE_PROJECT_ID || '').trim())
+  const hasGoogleCloudProject = Boolean(String(process.env.GOOGLE_CLOUD_PROJECT || '').trim())
+  const hasGCloudProject = Boolean(String(process.env.GCLOUD_PROJECT || '').trim())
+  console.info('[FIREBASE_ADMIN] env check', {
+    hasServiceAccountKey,
+    hasFirebaseProjectId,
+    hasGoogleCloudProject,
+    hasGCloudProject,
+  })
+}
 
 function parseServiceAccountFromEnv(raw: string) {
   const attempts: string[] = []
@@ -28,6 +45,16 @@ function parseServiceAccountFromEnv(raw: string) {
     })
   )
 
+  // Some deployments store the service account as base64-encoded JSON.
+  try {
+    const decoded = Buffer.from(trimmed, 'base64').toString('utf8').trim()
+    if (decoded.startsWith('{') && decoded.endsWith('}')) {
+      attempts.push(decoded)
+    }
+  } catch {
+    // Ignore base64 decode attempts and continue parse strategies.
+  }
+
   for (const candidate of attempts) {
     try {
       return JSON.parse(candidate)
@@ -45,10 +72,12 @@ export function getAdminApp(): App | null {
   }
 
   try {
+    logAdminEnvDiagnostics()
     // Check if already initialized
     const existingApps = getApps()
     if (existingApps.length > 0) {
       adminApp = existingApps[0]
+      console.info('[FIREBASE_ADMIN] initializeApp reused existing app')
       return adminApp
     }
 
@@ -72,10 +101,10 @@ export function getAdminApp(): App | null {
           projectId,
           storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
         })
-        console.log('✅ Firebase Admin initialized with service account')
+        console.info('[FIREBASE_ADMIN] initializeApp success via service account')
         return adminApp
       } catch (e) {
-        console.error('❌ Failed to parse service account:', e)
+        console.error('[FIREBASE_ADMIN] service account initialization failed')
       }
     }
 
@@ -87,7 +116,7 @@ export function getAdminApp(): App | null {
       Boolean(process.env.K_SERVICE)
 
     if (!hasAdcHint) {
-      console.error('❌ Firebase Admin not configured: FIREBASE_SERVICE_ACCOUNT_KEY is missing')
+      console.error('[FIREBASE_ADMIN] not configured: missing service account and no ADC hints')
       return null
     }
 
@@ -96,14 +125,14 @@ export function getAdminApp(): App | null {
         projectId,
         storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
       })
-      console.log('✅ Firebase Admin initialized with default credentials')
+      console.info('[FIREBASE_ADMIN] initializeApp success via default credentials')
       return adminApp
     } catch (e) {
-      console.error('❌ Failed to initialize with default credentials:', e)
+      console.error('[FIREBASE_ADMIN] default credentials initialization failed')
       return null
     }
   } catch (error) {
-    console.error('❌ Firebase Admin initialization error:', error)
+    console.error('[FIREBASE_ADMIN] initialization error')
     return null
   }
 }
@@ -122,7 +151,7 @@ export function getAdminStorage(): Storage | null {
     adminStorage = getStorage(app)
     return adminStorage
   } catch (error) {
-    console.error('❌ Failed to get Admin Storage:', error)
+    console.error('[FIREBASE_ADMIN] failed to get storage')
     return null
   }
 }
@@ -136,7 +165,7 @@ export function getAdminBucket() {
   try {
     return storage.bucket()
   } catch (error) {
-    console.error('❌ Failed to get bucket:', error)
+    console.error('[FIREBASE_ADMIN] failed to get storage bucket')
     return null
   }
 }
@@ -155,7 +184,7 @@ export function getAdminFirestore(): Firestore | null {
     adminFirestore = getFirestore(app)
     return adminFirestore
   } catch (error) {
-    console.error('❌ Failed to get Admin Firestore:', error)
+    console.error('[FIREBASE_ADMIN] failed to get firestore')
     return null
   }
 }

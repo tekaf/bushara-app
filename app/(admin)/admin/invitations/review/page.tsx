@@ -7,6 +7,7 @@ import { isAdminEmailClient } from '@/lib/auth/admin-access'
 
 type QueueInvite = {
   id: string
+  orderCode: string
   ownerName: string
   workflowStatus: string
   reviewStatus: string
@@ -19,6 +20,7 @@ export default function AdminReviewQueuePage() {
   const [loading, setLoading] = useState(true)
   const [invites, setInvites] = useState<QueueInvite[]>([])
   const [error, setError] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const isAdmin = isAdminEmailClient(user?.email)
 
   useEffect(() => {
@@ -27,7 +29,11 @@ export default function AdminReviewQueuePage() {
       try {
         setLoading(true)
         const token = await user.getIdToken()
-        const response = await fetch('/api/admin/invitations/review', {
+        const q = searchQuery.trim()
+        const endpoint = q
+          ? `/api/admin/invitations/review?limit=120&q=${encodeURIComponent(q)}`
+          : '/api/admin/invitations/review'
+        const response = await fetch(endpoint, {
           headers: { Authorization: `Bearer ${token}` },
         })
         const data = await response.json().catch(() => ({}))
@@ -40,7 +46,7 @@ export default function AdminReviewQueuePage() {
       }
     }
     if (!authLoading) load()
-  }, [authLoading, isAdmin, user])
+  }, [authLoading, isAdmin, searchQuery, user])
 
   if (authLoading || loading) {
     return <div className="p-8 text-center text-muted">جاري تحميل قائمة المراجعة...</div>
@@ -57,16 +63,37 @@ export default function AdminReviewQueuePage() {
     )
   }
 
+  const hasError = Boolean(error)
+
   return (
-    <div className="min-h-screen bg-bg p-6">
+    <div className="min-h-screen bg-bg p-4 md:p-6">
       <div className="mx-auto max-w-6xl">
+        <div className="mb-3">
+          <Link
+            href="/admin"
+            className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            رجوع
+          </Link>
+        </div>
         <h1 className="mb-2 text-3xl font-bold">ورشة التأكد - قائمة المراجعة</h1>
         <p className="mb-6 text-muted">الدعوات التي دخلت مرحلة المراجعة بعد الدفع.</p>
-        {error ? <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">{error}</div> : null}
+        <div className="mb-4">
+          <input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="ابحث عبر Order Code أو Invite ID"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary"
+          />
+        </div>
 
-        {invites.length === 0 ? (
+        {hasError ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-right text-red-700">
+            <p className="text-sm md:text-base">{error}</p>
+          </div>
+        ) : invites.length === 0 ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-muted">
-            لا توجد دعوات بانتظار المراجعة حاليًا.
+            لا توجد دعوات في ورشة التأكد حاليًا.
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -86,10 +113,19 @@ export default function AdminReviewQueuePage() {
                   )}
                 </div>
                 <div className="flex items-center justify-between gap-3 p-4">
-                  <p className="truncate font-semibold text-textDark">
-                    {invite.ownerName || 'مستخدم بدون اسم'}
-                  </p>
-                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 whitespace-nowrap">
+                  <div>
+                    <p className="truncate font-semibold text-textDark">{invite.ownerName || 'مستخدم بدون اسم'}</p>
+                    <p className="text-xs text-muted">{invite.orderCode || invite.id}</p>
+                  </div>
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${
+                      invite.workflowStatus === 'approved'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : invite.workflowStatus === 'needs_customer_update'
+                        ? 'bg-rose-100 text-rose-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
                     {invite.workflowStatus || 'in_workshop_review'}
                   </span>
                 </div>
