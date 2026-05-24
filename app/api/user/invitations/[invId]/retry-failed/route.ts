@@ -3,6 +3,7 @@ import { getAuth } from 'firebase-admin/auth'
 import { FieldValue } from 'firebase-admin/firestore'
 import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
 import { getWorkflowTransitionError, INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
+import { releaseDispatchKernelLock, runDispatchProtection } from '@/lib/dispatch/kernel'
 
 export const runtime = 'nodejs'
 
@@ -46,25 +47,44 @@ export async function POST(request: NextRequest, { params }: { params: { invId: 
     const { uid, adminDb } = await getSession(request)
     const inviteId = String(params?.invId || '').trim()
     if (!inviteId) return NextResponse.json({ error: 'Missing invite id' }, { status: 400 })
-
-    const body = await request.json().catch(() => ({}))
-    const allowOverLimitManual = body?.allowOverLimitManual === true
-    const maxAttempts = Math.max(1, Number(process.env.SEND_MAX_ATTEMPTS || 3))
-    const timezone = String(body?.timezone || 'Asia/Riyadh').trim() || 'Asia/Riyadh'
-    const requestedScheduledAt = parseScheduledAt(body?.scheduledSendAt)
-    if (body?.scheduledSendAt !== undefined && !requestedScheduledAt) {
-      return NextResponse.json({ error: 'Invalid scheduledSendAt. Provide a valid ISO datetime.' }, { status: 400 })
+    const lockOwner = `retry-failed:${uid}`
+    const protection = await runDispatchProtection({
+      adminDb,
+      source: 'retry_failed',
+      inviteId,
+      checkGuestRelations: true,
+      blockOnFailure: true,
+      acquireLock: true,
+      lockOwner,
+    })
+    if (!protection.valid) {
+      return NextResponse.json(
+        { error: protection.reason, decision: protection.decision, inviteId, orderCode: protection.orderCode || '' },
+        { status: protection.decision === 'orphan_blocked' ? 404 : 409 }
+      )
     }
-    const scheduledAt = requestedScheduledAt || new Date(Date.now() + 30_000)
-    if (scheduledAt.getTime() <= Date.now()) {
-      return NextResponse.json({ error: 'scheduledSendAt must be in the future.' }, { status: 409 })
-    }
 
-    const inviteRef = adminDb.collection('invites').doc(inviteId)
-    const result = await adminDb.runTransaction(async (tx) => {
+    const lockKey = String(protection.lock?.key || '').trim()
+    try {
+      const body = await request.json().catch(() => ({}))
+      const allowOverLimitManual = body?.allowOverLimitManual === true
+      const maxAttempts = Math.max(1, Number(process.env.SEND_MAX_ATTEMPTS || 3))
+      const timezone = String(body?.timezone || 'Asia/Riyadh').trim() || 'Asia/Riyadh'
+      const requestedScheduledAt = parseScheduledAt(body?.scheduledSendAt)
+      if (body?.scheduledSendAt !== undefined && !requestedScheduledAt) {
+        return NextResponse.json({ error: 'Invalid scheduledSendAt. Provide a valid ISO datetime.' }, { status: 400 })
+      }
+      const scheduledAt = requestedScheduledAt || new Date(Date.now() + 30_000)
+      if (scheduledAt.getTime() <= Date.now()) {
+        return NextResponse.json({ error: 'scheduledSendAt must be in the future.' }, { status: 409 })
+      }
+
+      const inviteRef = adminDb.collection('invites').doc(inviteId)
+      const result = await adminDb.runTransaction(async (tx) => {
       const inviteSnap = await tx.get(inviteRef)
       if (!inviteSnap.exists) return { ok: false as const, status: 404, error: 'Invite not found' }
       const invite = inviteSnap.data() as any
+      const inviteOrderCode = String(invite?.orderCode || invite?.orderNumber || '').trim()
       if (String(invite?.ownerId || '') !== uid) {
         return { ok: false as const, status: 403, error: 'Forbidden' }
       }
@@ -90,21 +110,6 @@ export async function POST(request: NextRequest, { params }: { params: { invId: 
           ok: false as const,
           status: 409,
           error: `Retry is not allowed for workflowStatus=${workflowStatus || 'unknown'}.`,
-        }
-      }
-
-      const activeJobsSnap = await tx.get(
-        adminDb
-          .collection('send_jobs')
-          .where('inviteId', '==', inviteId)
-          .where('status', 'in', ['scheduled', 'dispatching', 'processing'])
-          .limit(1)
-      )
-      if (!activeJobsSnap.empty) {
-        return {
-          ok: false as const,
-          status: 409,
-          error: 'Retry is blocked while another send job is active.',
         }
       }
 
@@ -155,6 +160,7 @@ export async function POST(request: NextRequest, { params }: { params: { invId: 
       const jobRef = adminDb.collection('send_jobs').doc()
       tx.set(jobRef, {
         inviteId,
+        orderCode: inviteOrderCode,
         scheduledAt,
         status: 'scheduled',
         attempt: 0,
@@ -206,24 +212,29 @@ export async function POST(request: NextRequest, { params }: { params: { invId: 
         skippedOverLimitCount: allowOverLimitManual ? 0 : overLimitGuests.length,
         workflowStatus: nextWorkflowStatus,
       }
-    })
+      })
 
-    if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: result.status })
+      }
+
+      return NextResponse.json({
+        ok: true,
+        inviteId,
+        jobId: result.jobId,
+        workflowStatus: result.workflowStatus,
+        retryGuestsCount: result.retryGuestsCount,
+        skippedOverLimitCount: result.skippedOverLimitCount,
+        maxAttempts,
+        allowOverLimitManual,
+        scheduledSendAt: scheduledAt.toISOString(),
+        timezone,
+      })
+    } finally {
+      if (lockKey) {
+        await releaseDispatchKernelLock(adminDb, { lockKey, lockOwner }).catch(() => null)
+      }
     }
-
-    return NextResponse.json({
-      ok: true,
-      inviteId,
-      jobId: result.jobId,
-      workflowStatus: result.workflowStatus,
-      retryGuestsCount: result.retryGuestsCount,
-      skippedOverLimitCount: result.skippedOverLimitCount,
-      maxAttempts,
-      allowOverLimitManual,
-      scheduledSendAt: scheduledAt.toISOString(),
-      timezone,
-    })
   } catch (error: any) {
     const status = error?.message === 'Unauthorized' ? 401 : 500
     return NextResponse.json({ error: error?.message || 'Failed to retry failed guests' }, { status })

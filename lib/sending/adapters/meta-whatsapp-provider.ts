@@ -40,6 +40,13 @@ const THROTTLED_CODES = new Set(['4', '17', '32', '613', '80007', '130429', '131
 const PERMANENT_CODES = new Set(['10', '100', '190', '131026', '131047', '131051'])
 const TRANSIENT_CODES = new Set(['1', '2', '131000', '131016', '131021'])
 
+function maskPhone(value: string): string {
+  const input = String(value || '').trim()
+  if (!input) return ''
+  if (input.length <= 4) return '*'.repeat(input.length)
+  return `${'*'.repeat(Math.max(0, input.length - 4))}${input.slice(-4)}`
+}
+
 function mapMetaMessageStatus(status: string | undefined): WhatsAppProviderMessageStatus {
   const value = String(status || '').toLowerCase()
   if (!value) return 'accepted'
@@ -165,6 +172,7 @@ export class MetaWhatsAppProviderService implements WhatsAppProviderService {
     const endpoint = `${this.graphBaseUrl}/${this.apiVersion}/${this.phoneNumberId}/messages`
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs)
+    const maskedTo = maskPhone(to)
 
     const requestBody: Record<string, unknown> = templateName
       ? {
@@ -244,6 +252,15 @@ export class MetaWhatsAppProviderService implements WhatsAppProviderService {
         }
 
     try {
+      console.info('[WHATSAPP][PROVIDER][META] before-send', {
+        inviteId: context.inviteId,
+        guestId: context.guestId,
+        jobId: context.jobId,
+        attempt: context.attempt,
+        to: maskedTo,
+        hasTemplate: Boolean(templateName),
+        hasMedia: Boolean(mediaUrl),
+      })
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -258,6 +275,22 @@ export class MetaWhatsAppProviderService implements WhatsAppProviderService {
       const data = (await response.json().catch(() => ({}))) as
         | MetaSendResponse
         | { error?: MetaApiError; [key: string]: unknown }
+      const responseMessageId = String((data as MetaSendResponse)?.messages?.[0]?.id || '').trim()
+      const responseMessageStatus = String((data as MetaSendResponse)?.messages?.[0]?.message_status || '').trim()
+      const responseError = (data as { error?: MetaApiError })?.error
+      console.info('[WHATSAPP][PROVIDER][META] after-send-response', {
+        inviteId: context.inviteId,
+        guestId: context.guestId,
+        jobId: context.jobId,
+        attempt: context.attempt,
+        to: maskedTo,
+        ok: response.ok,
+        status: response.status,
+        messageId: responseMessageId || null,
+        messageStatus: responseMessageStatus || null,
+        providerErrorCode: responseError?.code ?? null,
+        providerErrorMessage: responseError?.message ?? null,
+      })
 
       if (!response.ok) {
         const normalized = classifyMetaError(
@@ -279,12 +312,27 @@ export class MetaWhatsAppProviderService implements WhatsAppProviderService {
       }
     } catch (error: any) {
       if (error?.name === 'AbortError') {
+        console.error('[WHATSAPP][PROVIDER][META] timeout', {
+          inviteId: context.inviteId,
+          guestId: context.guestId,
+          jobId: context.jobId,
+          attempt: context.attempt,
+          to: maskedTo,
+        })
         throw new MetaProviderSendError({
           kind: 'transient',
           message: 'Meta provider request timeout',
           rawError: error,
         })
       }
+      console.error('[WHATSAPP][PROVIDER][META] send-failed', {
+        inviteId: context.inviteId,
+        guestId: context.guestId,
+        jobId: context.jobId,
+        attempt: context.attempt,
+        to: maskedTo,
+        error: error instanceof Error ? error.message : String(error),
+      })
       if (error instanceof MetaProviderSendError) throw error
       throw new MetaProviderSendError(this.normalizeError(error))
     } finally {

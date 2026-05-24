@@ -4,8 +4,21 @@ import { FieldValue } from 'firebase-admin/firestore'
 import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
 import { isAdminEmailServer } from '@/lib/auth/admin-access'
 import { INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
+import type { FinalInvitationSnapshot } from '@/lib/workshop/snapshot'
+import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
 
 export const runtime = 'nodejs'
+
+const PREVIEW_REGENERATE_ALLOWED_STATUSES = new Set<string>([
+  INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW,
+  INVITE_WORKFLOW_STATUS.NEEDS_CUSTOMER_UPDATE,
+  INVITE_WORKFLOW_STATUS.APPROVED,
+  INVITE_WORKFLOW_STATUS.READY_FOR_SCHEDULING,
+  INVITE_WORKFLOW_STATUS.SCHEDULED,
+  INVITE_WORKFLOW_STATUS.SENDING,
+  INVITE_WORKFLOW_STATUS.PARTIALLY_SENT,
+  INVITE_WORKFLOW_STATUS.SENT,
+])
 
 async function verifyAdmin(request: NextRequest) {
   const authHeader = request.headers.get('authorization') || ''
@@ -23,22 +36,6 @@ async function verifyAdmin(request: NextRequest) {
   return decoded.uid
 }
 
-function buildFieldsPayload(invite: any) {
-  return {
-    groomNameAr: String(invite?.groomName || ''),
-    brideNameAr: String(invite?.brideName || ''),
-    fatherOfBride: String(invite?.fatherOfBride || ''),
-    fatherOfGroom: String(invite?.fatherOfGroom || ''),
-    motherOfBride: String(invite?.motherOfBride || ''),
-    motherOfGroom: String(invite?.motherOfGroom || ''),
-    dateText: String(invite?.dateText || invite?.date || ''),
-    fullDateLine: String(invite?.fullDateLine || ''),
-    hallLocation: String(invite?.locationName || ''),
-    venueText: String(invite?.locationName || ''),
-    receptionTime: String(invite?.time || ''),
-  }
-}
-
 export async function POST(request: NextRequest, { params }: { params: { inviteId: string } }) {
   try {
     const adminUid = await verifyAdmin(request)
@@ -51,29 +48,35 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
     const inviteRef = adminDb.collection('invites').doc(inviteId)
     const inviteSnap = await inviteRef.get()
     if (!inviteSnap.exists) return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
+    await ensureInviteOrderFoundation(adminDb, inviteId)
     const invite = inviteSnap.data() as any
 
-    if (String(invite?.workflowStatus || '') !== INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW) {
-      return NextResponse.json({ error: 'Preview regeneration is available only in workshop review.' }, { status: 409 })
+    const workflowStatus = String(invite?.workflowStatus || '').trim()
+    if (!PREVIEW_REGENERATE_ALLOWED_STATUSES.has(workflowStatus)) {
+      return NextResponse.json(
+        { error: `Preview regeneration is not allowed for workflow status: ${workflowStatus || 'unknown'}.` },
+        { status: 409 }
+      )
     }
-
-    const templateId = String(invite?.designId || '').trim()
-    if (!templateId) return NextResponse.json({ error: 'Invite designId is missing' }, { status: 409 })
 
     const internalSnap = await adminDb.collection('invitation_internal').doc(inviteId).get()
     const internal = internalSnap.exists ? (internalSnap.data() as any) : {}
-    const designer = internal?.workshopDesigner || {}
+    const snapshot = (internal?.finalInvitationSnapshot || null) as FinalInvitationSnapshot | null
+    if (!snapshot?.templateId || !snapshot?.fields) {
+      return NextResponse.json({ error: 'Snapshot is missing. Open workshop first to initialize it.' }, { status: 409 })
+    }
 
     const renderResponse = await fetch(`${request.nextUrl.origin}/api/render/final`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        templateId,
+        templateId: snapshot.templateId,
         variant: 'whatsapp_1080x1920',
-        fields: buildFieldsPayload(invite),
+        fields: snapshot.fields,
         renderOptions: {
-          layoutB: designer?.layoutB || undefined,
-          blockStyleOverrides: designer?.blockStyleOverrides || {},
+          layoutB: (snapshot?.renderOptions as any)?.layoutB || undefined,
+          blockStyleOverrides: (snapshot?.renderOptions as any)?.blockStyleOverrides || {},
+          blockPositionOverrides: (snapshot?.renderOptions as any)?.blockPositionOverrides || {},
         },
       }),
     })

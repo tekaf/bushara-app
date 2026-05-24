@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminFirestore } from '@/lib/firebase/admin'
+import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
 
 export const runtime = 'nodejs'
 
@@ -11,6 +12,7 @@ async function findGuestByToken(token: string, inviteId?: string) {
     const inviteRef = adminDb.collection('invites').doc(inviteId)
     const inviteSnap = await inviteRef.get()
     if (!inviteSnap.exists) return null
+    await ensureInviteOrderFoundation(adminDb, inviteId)
     const guestsSnap = await inviteRef.collection('guests').where('rsvpToken', '==', token).limit(1).get()
     if (guestsSnap.empty) return null
     const guestDoc = guestsSnap.docs[0]
@@ -36,6 +38,7 @@ async function findGuestByToken(token: string, inviteId?: string) {
   if (!inviteRef) return null
   const inviteSnap = await inviteRef.get()
   if (!inviteSnap.exists) return null
+  await ensureInviteOrderFoundation(adminDb, inviteRef.id)
 
   return {
     guestRef: guestDoc.ref,

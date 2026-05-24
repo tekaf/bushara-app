@@ -8,6 +8,7 @@ import {
   INVITE_WORKFLOW_STATUS,
   getWorkflowTransitionError,
 } from '@/lib/invitations/workflow'
+import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
 
 export const runtime = 'nodejs'
 
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
     const inviteRef = adminDb.collection('invites').doc(inviteId)
     const inviteSnap = await inviteRef.get()
     if (!inviteSnap.exists) return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
+    await ensureInviteOrderFoundation(adminDb, inviteId)
     const invite = inviteSnap.data() as any
     const transitionError = getWorkflowTransitionError(
       String(invite?.workflowStatus || ''),

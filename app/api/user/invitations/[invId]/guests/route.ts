@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuth } from 'firebase-admin/auth'
 import type { DocumentData, DocumentReference } from 'firebase-admin/firestore'
 import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
+import { validateInvitationRelation } from '@/lib/orders/orphan-protection'
 
 export const runtime = 'nodejs'
 
@@ -52,6 +53,17 @@ export async function GET(request: NextRequest, { params }: { params: { invId: s
     const inviteRef = adminDb.collection('invites').doc(inviteId)
     const inviteSnap = await inviteRef.get()
     if (!inviteSnap.exists) return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
+    const relation = await validateInvitationRelation(adminDb, inviteId, {
+      operation: 'guests_get',
+      blockOnFailure: true,
+      checkGuestRelations: false,
+    })
+    if (!relation.ok) {
+      return NextResponse.json(
+        { error: relation.reason, relationCode: relation.code },
+        { status: relation.code === 'invitation_missing' ? 404 : 409 }
+      )
+    }
     const invite = inviteSnap.data() as any
     if (!canAccessGuestsForInvite(invite)) {
       return NextResponse.json(
@@ -130,6 +142,17 @@ export async function POST(request: NextRequest, { params }: { params: { invId: 
     const inviteRef = adminDb.collection('invites').doc(inviteId)
     const inviteSnap = await inviteRef.get()
     if (!inviteSnap.exists) return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
+    const relation = await validateInvitationRelation(adminDb, inviteId, {
+      operation: 'guests_post',
+      blockOnFailure: true,
+      checkGuestRelations: true,
+    })
+    if (!relation.ok) {
+      return NextResponse.json(
+        { error: relation.reason, relationCode: relation.code },
+        { status: relation.code === 'invitation_missing' ? 404 : 409 }
+      )
+    }
     const invite = inviteSnap.data() as any
     if (!canAccessGuestsForInvite(invite)) {
       return NextResponse.json(
@@ -226,9 +249,11 @@ export async function POST(request: NextRequest, { params }: { params: { invId: 
       }
 
       const finalToWrite = txToWrite.slice(0, writableCount)
+      const inviteOrderCode = String(txInvite?.orderCode || txInvite?.orderNumber || '').trim()
       finalToWrite.forEach((guest) => {
         const ref = inviteRef.collection('guests').doc()
         tx.set(ref, {
+          orderCode: inviteOrderCode,
           phoneLocal: guest.phoneLocal,
           phoneE164: guest.phoneE164,
           name: guest.name?.trim() || '',

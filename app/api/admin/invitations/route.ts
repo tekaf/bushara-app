@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
     const { adminDb } = await verifyAdmin(request)
     const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 40)
     const limit = Math.max(1, Math.min(100, limitRaw))
+    const query = String(request.nextUrl.searchParams.get('q') || '').trim().toLowerCase()
 
     let snap: FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>
     try {
@@ -45,14 +46,22 @@ export async function GET(request: NextRequest) {
     const invites = snap.docs
       .map((doc) => {
         const row = doc.data() as any
+        const orderCode = String(row?.orderCode || row?.orderNumber || '').trim()
         return {
           id: doc.id,
           title: String(row?.title || ''),
+          orderCode,
           workflowStatus: String(row?.workflowStatus || row?.status || ''),
           paymentStatus: String(row?.paymentStatus || ''),
           ownerId: String(row?.ownerId || ''),
           updatedAt: toIso(row?.updatedAt) || toIso(row?.createdAt),
         }
+      })
+      .filter((row) => {
+        if (!query) return true
+        const id = String(row.id || '').toLowerCase()
+        const orderCode = String(row.orderCode || '').toLowerCase()
+        return id.includes(query) || orderCode.includes(query)
       })
       .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())
 

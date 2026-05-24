@@ -37,7 +37,7 @@ function TemplatesPageContent() {
   const flowSteps = [
     { id: 1, label: 'نوع المناسبة' },
     { id: 2, label: 'اختيار القالب' },
-    { id: 3, label: 'بيانات العروس والعريس' },
+    { id: 3, label: 'بيانات المناسبة' },
     { id: 4, label: 'تفاصيل المناسبة' },
     { id: 5, label: 'الدفع' },
   ]

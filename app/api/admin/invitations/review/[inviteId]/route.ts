@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuth } from 'firebase-admin/auth'
 import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
 import { isAdminEmailServer } from '@/lib/auth/admin-access'
+import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
 
 export const runtime = 'nodejs'
 
@@ -26,10 +27,13 @@ function buildAlenAssistant(invite: any) {
   const suggestions: string[] = []
   const dateRaw = String(invite?.date || '')
   const preview = String(invite?.adminPreviewUrl || invite?.inviteImageUrl || invite?.finalUrl || invite?.previewUrl || '')
+  const selectedOccasion = String(invite?.selectedOccasion || invite?.occasionType || '').trim().toLowerCase()
+  const invitationType = String(invite?.invitationType || '').trim().toLowerCase()
+  const isAnnouncementOnly = selectedOccasion === 'engagement' && invitationType === 'announcement'
 
-  if (!String(invite?.groomName || '').trim()) findings.push('اسم العريس غير موجود')
-  if (!String(invite?.brideName || '').trim()) findings.push('اسم العروس غير موجود')
-  if (!String(invite?.locationName || '').trim()) findings.push('الموقع غير محدد')
+  if (!String(invite?.groomName || '').trim()) findings.push('اسم صاحب المناسبة غير موجود')
+  if (!String(invite?.brideName || '').trim()) findings.push('اسم صاحبة المناسبة غير موجود')
+  if (!isAnnouncementOnly && !String(invite?.locationName || '').trim()) findings.push('الموقع غير محدد')
   if (!dateRaw) findings.push('تاريخ المناسبة غير محدد')
 
   if (dateRaw) {
@@ -64,6 +68,7 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
     const inviteRef = adminDb.collection('invites').doc(inviteId)
     const inviteSnap = await inviteRef.get()
     if (!inviteSnap.exists) return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
+    await ensureInviteOrderFoundation(adminDb, inviteId)
     const invite = inviteSnap.data() as any
 
     let reviewSnap: FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>
@@ -104,6 +109,7 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
           uid: ownerId,
           name: row?.name || '',
           email: row?.email || '',
+          phone: row?.phone || row?.phoneNumber || '',
         }
       }
     }
@@ -119,7 +125,8 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
       invite: {
         id: inviteSnap.id,
         title: invite?.title || '',
-        orderNumber: invite?.orderNumber || '',
+        orderCode: invite?.orderCode || invite?.orderNumber || '',
+        orderNumber: invite?.orderNumber || invite?.orderCode || '',
         selectedOccasion: invite?.selectedOccasion || invite?.occasionType || '',
         groomName: invite?.groomName || '',
         brideName: invite?.brideName || '',
@@ -128,7 +135,22 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
         locationName: invite?.locationName || '',
         designId: invite?.designId || '',
         paymentStatus: invite?.paymentStatus || '',
+        packageName:
+          invite?.packageName ||
+          invite?.selectedPackageName ||
+          invite?.packageLabel ||
+          invite?.selectedPackage ||
+          '',
+        paidAmount:
+          invite?.paidAmount ||
+          invite?.paymentAmount ||
+          invite?.totalPrice ||
+          invite?.price ||
+          '',
+        phone: invite?.phone || invite?.phoneNumber || '',
         workflowStatus: invite?.workflowStatus || '',
+        dispatchMode: invite?.dispatchMode || 'manual',
+        dispatchStatus: invite?.dispatchStatus || 'pending',
         reviewStatus: invite?.reviewStatus || '',
         adminPreviewUrl,
         workshopEnteredAt: invite?.workshopEnteredAt?.toDate?.()?.toISOString?.() || null,

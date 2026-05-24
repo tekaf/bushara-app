@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuth } from 'firebase-admin/auth'
 import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
 import { isAdminEmailServer } from '@/lib/auth/admin-access'
+import { runDispatchProtection } from '@/lib/dispatch/kernel'
 
 export const runtime = 'nodejs'
 
@@ -38,6 +39,19 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
     const { adminDb } = await getSession(request)
     const inviteId = String(params?.inviteId || '').trim()
     if (!inviteId) return NextResponse.json({ error: 'Missing invite id' }, { status: 400 })
+    const protection = await runDispatchProtection({
+      adminDb,
+      source: 'admin_send_status',
+      inviteId,
+      checkGuestRelations: false,
+      blockOnFailure: false,
+    })
+    if (!protection.valid) {
+      return NextResponse.json(
+        { error: protection.reason, decision: protection.decision, inviteId, orderCode: protection.orderCode || '' },
+        { status: protection.decision === 'orphan_blocked' ? 404 : 409 }
+      )
+    }
 
     const inviteRef = adminDb.collection('invites').doc(inviteId)
     const inviteSnap = await inviteRef.get()
@@ -49,7 +63,16 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
       adminDb.collection('send_logs').where('inviteId', '==', inviteId).limit(3000).get(),
     ])
 
-    const guestBreakdown = { pending: 0, scheduled: 0, send_pending: 0, sent: 0, failed: 0, unknown: 0 }
+    const guestBreakdown = {
+      pending: 0,
+      scheduled: 0,
+      send_pending: 0,
+      sent: 0,
+      failed: 0,
+      blocked_orphan: 0,
+      relation_failed: 0,
+      unknown: 0,
+    }
     for (const doc of guestsSnap.docs) {
       const sendStatus = String((doc.data() as any)?.sendStatus || 'pending')
       if (sendStatus === 'pending') guestBreakdown.pending += 1
@@ -57,6 +80,8 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
       else if (sendStatus === 'send_pending') guestBreakdown.send_pending += 1
       else if (sendStatus === 'sent') guestBreakdown.sent += 1
       else if (sendStatus === 'failed') guestBreakdown.failed += 1
+      else if (sendStatus === 'blocked_orphan') guestBreakdown.blocked_orphan += 1
+      else if (sendStatus === 'relation_failed') guestBreakdown.relation_failed += 1
       else guestBreakdown.unknown += 1
     }
 
@@ -102,13 +127,22 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
       ok: true,
       inviteId,
       invitation: {
+        orderCode: String(invite?.orderCode || invite?.orderNumber || ''),
         workflowStatus: String(invite?.workflowStatus || ''),
+        dispatchMode: String(invite?.dispatchMode || 'manual'),
+        dispatchStatus: String(invite?.dispatchStatus || 'pending'),
         scheduledSendAt: toIso(invite?.scheduledSendAt),
         timezone: String(invite?.timezone || 'Asia/Riyadh'),
       },
       summary: {
         totalGuests: guestsSnap.size,
-        pendingGuests: guestBreakdown.pending + guestBreakdown.scheduled + guestBreakdown.send_pending + guestBreakdown.unknown,
+        pendingGuests:
+          guestBreakdown.pending +
+          guestBreakdown.scheduled +
+          guestBreakdown.send_pending +
+          guestBreakdown.blocked_orphan +
+          guestBreakdown.relation_failed +
+          guestBreakdown.unknown,
         sentGuests: guestBreakdown.sent,
         failedGuests: guestBreakdown.failed,
         inProgressGuests: guestBreakdown.send_pending,

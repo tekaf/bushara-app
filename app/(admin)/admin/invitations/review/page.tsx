@@ -66,17 +66,8 @@ export default function AdminReviewQueuePage() {
   const hasError = Boolean(error)
 
   return (
-    <div className="min-h-screen bg-bg p-4 md:p-6">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-3">
-          <Link
-            href="/admin"
-            className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            رجوع
-          </Link>
-        </div>
-        <h1 className="mb-2 text-3xl font-bold">ورشة التأكد - قائمة المراجعة</h1>
+    <div className="mx-auto max-w-6xl">
+      <h1 className="mb-2 text-3xl font-bold">ورشة التأكد - قائمة المراجعة</h1>
         <p className="mb-6 text-muted">الدعوات التي دخلت مرحلة المراجعة بعد الدفع.</p>
         <div className="mb-4">
           <input
@@ -133,7 +124,6 @@ export default function AdminReviewQueuePage() {
             ))}
           </div>
         )}
-      </div>
     </div>
   )
 }

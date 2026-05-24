@@ -10,8 +10,46 @@ const cairo = Cairo({
 })
 
 export const metadata: Metadata = {
-  title: 'بشارة - منصة الدعوات الإلكترونية',
-  description: 'أنشئ دعوات زواج ومناسبات إلكترونية احترافية خلال دقائق',
+  metadataBase: new URL('https://www.busharh.com'),
+  title: 'بشاره | دعوات إلكترونية للزواج والخطوبة والمناسبات',
+  description:
+    'أنشئ دعوات إلكترونية احترافية للزواج والخطوبة والمناسبات مع إدارة المدعوين، RSVP، وإرسال الدعوات عبر واتساب بسهولة.',
+  keywords: [
+    'دعوات إلكترونية',
+    'دعوة زواج إلكترونية',
+    'دعوات زواج',
+    'دعوات خطوبة',
+    'دعوات مناسبات',
+    'تصميم دعوات',
+    'RSVP',
+    'إرسال دعوات واتساب',
+    'بشاره',
+    'Busharh',
+  ],
+  openGraph: {
+    title: 'بشاره | دعوات إلكترونية للزواج والخطوبة والمناسبات',
+    description:
+      'أنشئ دعوات إلكترونية احترافية للزواج والخطوبة والمناسبات مع إدارة المدعوين، RSVP، وإرسال الدعوات عبر واتساب بسهولة.',
+    url: 'https://www.busharh.com',
+    siteName: 'بشاره | Busharh',
+    images: [
+      {
+        url: '/api/public/brand-logo',
+        width: 1200,
+        height: 630,
+        alt: 'بشاره - منصة الدعوات الإلكترونية',
+      },
+    ],
+    locale: 'ar_SA',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'بشاره | دعوات إلكترونية للزواج والخطوبة والمناسبات',
+    description:
+      'أنشئ دعوات إلكترونية احترافية للزواج والخطوبة والمناسبات مع إدارة المدعوين، RSVP، وإرسال الدعوات عبر واتساب بسهولة.',
+    images: ['/api/public/brand-logo'],
+  },
   icons: {
     icon: [
       { url: '/api/public/brand-logo', type: 'image/png' },

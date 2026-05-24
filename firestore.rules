@@ -1,89 +1,109 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if user is authenticated
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // Helper function to check if user owns the resource
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-    
-    // Users can only read/write their own user document
+
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId);
     }
-    
-    // Invites
+
     match /invites/{inviteId} {
-      // Allow read if user is the owner
-      allow read: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
-      
-      // Allow create if user sets themselves as owner
+      allow read: if isAdmin() || isOwner(resource.data.ownerId) || resource.data.status == 'active';
       allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      
-      // Allow update/delete if user is the owner
-      allow update, delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
-      
-      // Public read for active invites (for public invite page)
-      allow read: if resource.data.status == 'active';
-      
-      // Guests subcollection
+      allow update, delete: if isAdmin() || isOwner(resource.data.ownerId);
+
       match /guests/{guestId} {
-        // Allow read for authenticated users (for check-in)
-        allow read: if isAuthenticated();
-        
-        // Allow write only if user owns the invite
-        allow write: if isAuthenticated() && 
-          get(/databases/$(database)/documents/invites/$(inviteId)).data.ownerId == request.auth.uid;
+        allow read: if isAdmin() || isOwner(get(/databases/$(database)/documents/invites/$(inviteId)).data.ownerId);
+        allow write: if isAdmin() || isOwner(get(/databases/$(database)/documents/invites/$(inviteId)).data.ownerId);
       }
     }
-    
-    // Payments
+
     match /payments/{paymentId} {
-      // Users can only read/write their own payments
-      allow read, write: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      
-      // Allow create if user sets themselves as userId
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
     }
-    
-    // Check-in logs
+
     match /checkin_logs/{logId} {
-      // Allow read for authenticated users
-      allow read: if isAuthenticated();
-      
-      // Allow create for authenticated users
+      allow read: if isAdmin();
       allow create: if isAuthenticated() && request.resource.data.staffUserId == request.auth.uid;
+      allow update, delete: if false;
     }
-    
-    // Templates - public read, authenticated write
+
     match /templates/{templateId} {
-      // Allow public read (for viewing templates)
       allow read: if true;
-      
-      // Allow authenticated users to create/update/delete templates
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
-    
-    // Renders - allow authenticated users to create/read
+
     match /renders/{renderId} {
-      // Allow authenticated users to read their renders
       allow read: if isAuthenticated();
-      
-      // Allow authenticated users to create renders
       allow create: if isAuthenticated();
+      allow update, delete: if false;
     }
-    
-    // Presets (A, B, C) - Admin only
+
     match /presets/{presetType} {
-      // Anyone can read presets (for rendering)
       allow read: if true;
-      
-      // Only authenticated admins can write
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Admin/server operational collections (production hardening).
+    match /invitation_internal/{inviteId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /invitation_reviews/{reviewId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /risk_case_dispatches/{inviteId} {
+      allow read, write: if isAdmin();
+
+      match /entries/{guestId} {
+        allow read, write: if isAdmin();
+      }
+    }
+
+    match /risk_case_waves/{waveId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /risk_case_access_links/{tokenId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /send_jobs/{jobId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /send_logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /dispatch_kernel_events/{eventId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /dispatch_kernel_locks/{lockId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /analytics_events/{eventId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /admin_notifications/{notificationId} {
+      allow read, write: if isAdmin();
     }
   }
 }

@@ -222,6 +222,33 @@ export async function convertPdfUrlToPng(pdfUrl: string) {
   }
 }
 
+export async function convertPdfBufferToPng(pdfBuffer: Buffer) {
+  const startedAt = Date.now()
+  const browser = await launchBrowser()
+  const context = await browser.newContext({
+    viewport: { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT },
+    deviceScaleFactor: DEVICE_SCALE_FACTOR,
+  })
+
+  try {
+    const pngBuffer = await renderPdfBufferWithPdfJs(context, pdfBuffer)
+    const dimensions = getPngDimensions(pngBuffer)
+    if (dimensions.width !== TARGET_WIDTH || dimensions.height !== TARGET_HEIGHT) {
+      throw new Error(
+        `Converted PNG has invalid dimensions ${dimensions.width}x${dimensions.height}. Expected ${TARGET_WIDTH}x${TARGET_HEIGHT}`
+      )
+    }
+    return {
+      pngBuffer,
+      dimensions,
+      elapsedMs: Date.now() - startedAt,
+    }
+  } finally {
+    await context.close()
+    await browser.close()
+  }
+}
+
 export async function createThumbnailFromPngBuffer(pngBuffer: Buffer) {
   const startedAt = Date.now()
   const browser = await launchBrowser()

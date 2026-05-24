@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuth } from 'firebase-admin/auth'
 import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
+import { validateGuestRelation, validateInvitationRelation } from '@/lib/orders/orphan-protection'
 
 export const runtime = 'nodejs'
 
@@ -20,6 +21,12 @@ async function canAccessInvite(adminDb: any, uid: string, inviteId: string) {
   const inviteRef = adminDb.collection('invites').doc(inviteId)
   const inviteSnap = await inviteRef.get()
   if (!inviteSnap.exists) return { allowed: false, reason: 'Invite not found', inviteRef, isOwner: false }
+  const relation = await validateInvitationRelation(adminDb, inviteId, {
+    operation: 'guest_access',
+    blockOnFailure: true,
+    checkGuestRelations: false,
+  })
+  if (!relation.ok) return { allowed: false, reason: relation.reason, inviteRef, isOwner: false }
   const invite = inviteSnap.data() as any
   const isOwner = invite?.ownerId === uid
   if (isOwner) return { allowed: true, inviteRef, isOwner: true }
@@ -58,10 +65,19 @@ export async function PATCH(
       )
     }
 
-    const guestRef = access.inviteRef.collection('guests').doc(guestId)
-    const guestSnap = await guestRef.get()
-    if (!guestSnap.exists) return NextResponse.json({ error: 'Guest not found' }, { status: 404 })
-    const guest = guestSnap.data() as any
+    const guestRelation = await validateGuestRelation(adminDb, inviteId, guestId, {
+      operation: 'guest_patch',
+      blockOnFailure: true,
+      checkGuestRelations: false,
+    })
+    if (!guestRelation.ok) {
+      return NextResponse.json(
+        { error: guestRelation.reason, relationCode: guestRelation.code },
+        { status: guestRelation.code === 'guest_missing' ? 404 : 409 }
+      )
+    }
+    const guestRef = guestRelation.guestRef
+    const guest = guestRelation.guest
     if (!access.isOwner && guest?.assignedToUid !== uid) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -105,10 +121,19 @@ export async function DELETE(
       )
     }
 
-    const guestRef = access.inviteRef.collection('guests').doc(guestId)
-    const guestSnap = await guestRef.get()
-    if (!guestSnap.exists) return NextResponse.json({ error: 'Guest not found' }, { status: 404 })
-    const guest = guestSnap.data() as any
+    const guestRelation = await validateGuestRelation(adminDb, inviteId, guestId, {
+      operation: 'guest_delete',
+      blockOnFailure: true,
+      checkGuestRelations: false,
+    })
+    if (!guestRelation.ok) {
+      return NextResponse.json(
+        { error: guestRelation.reason, relationCode: guestRelation.code },
+        { status: guestRelation.code === 'guest_missing' ? 404 : 409 }
+      )
+    }
+    const guestRef = guestRelation.guestRef
+    const guest = guestRelation.guest
     if (!access.isOwner && guest?.assignedToUid !== uid) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }

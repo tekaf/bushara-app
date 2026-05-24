@@ -128,6 +128,8 @@ export default function TemplateDetailPage() {
     zaffaPeriod: 'PM' as TimePeriod,
     noKids: false,
     noPhotography: false,
+    invitationType: 'attendance' as 'announcement' | 'attendance',
+    engagementDate: '',
   })
   const [currentStep, setCurrentStep] = useState<StepId>(2)
   const [stepErrors, setStepErrors] = useState<Record<string, string>>({})
@@ -140,7 +142,7 @@ export default function TemplateDetailPage() {
   const steps: Array<{ id: StepId; label: string }> = [
     { id: 1, label: 'نوع المناسبة' },
     { id: 2, label: 'اختيار القالب' },
-    { id: 3, label: 'بيانات العروس والعريس' },
+    { id: 3, label: 'بيانات المناسبة' },
     { id: 4, label: 'تفاصيل المناسبة' },
     { id: 5, label: 'الدفع' },
   ]
@@ -156,23 +158,30 @@ export default function TemplateDetailPage() {
   }
 
   const buildFieldsPayload = () => {
+    const isEngagement = selectedOccasion === 'engagement' || template?.type === 'B'
+    const isAnnouncementOnly = isEngagement && formData.invitationType === 'announcement'
     return {
       groomNameAr: formData.groomNameAr,
       brideNameAr: formData.brideNameAr,
+      groomName: formData.groomNameAr,
+      brideName: formData.brideNameAr,
       fatherOfBride: formData.fatherOfBride,
       fatherOfGroom: formData.fatherOfGroom,
-      motherOfBride: formData.motherOfBride,
-      motherOfGroom: formData.motherOfGroom,
-      weddingDayLine: formData.weddingDay
-        ? `وذلك بمشيئة الله تعالى يوم ${formData.weddingDay}`
-        : '',
+      brideFatherName: formData.fatherOfBride,
+      groomFatherName: formData.fatherOfGroom,
+      motherOfBride: isEngagement ? '' : formData.motherOfBride,
+      motherOfGroom: isEngagement ? '' : formData.motherOfGroom,
+      weddingDayLine:
+        isEngagement || !formData.weddingDay ? '' : `وذلك بمشيئة الله تعالى يوم ${formData.weddingDay}`,
       fullDateLine: formData.fullDateLine,
-      hallLocation: formData.hallLocation,
-      receptionTime: receptionTimeLine,
-      zaffaTime: zaffaTimeLine,
-      venueText: formData.hallLocation,
+      hallLocation: isAnnouncementOnly ? '' : formData.hallLocation,
+      receptionTime: isAnnouncementOnly ? '' : receptionTimeLine,
+      zaffaTime: isEngagement ? '' : zaffaTimeLine,
+      venueText: isAnnouncementOnly ? '' : formData.hallLocation,
       date: formData.date,
+      engagementDate: formData.date,
       dateText: formData.dateText,
+      invitationType: formData.invitationType,
       noKids: formData.noKids ? '1' : '0',
       noPhotography: formData.noPhotography ? '1' : '0',
     }
@@ -182,19 +191,26 @@ export default function TemplateDetailPage() {
     const nextErrors: Record<string, string> = {}
 
     if (step === 2) {
-      if (!formData.brideNameAr.trim()) nextErrors.brideNameAr = 'اسم العروس مطلوب'
-      if (!formData.groomNameAr.trim()) nextErrors.groomNameAr = 'اسم العريس مطلوب'
-      if (!formData.fatherOfBride.trim()) nextErrors.fatherOfBride = 'اسم اب العروس والعائلة مطلوب'
-      if (!formData.fatherOfGroom.trim()) nextErrors.fatherOfGroom = 'اسم اب العريس والعائلة مطلوب'
-      if (!formData.motherOfBride.trim()) nextErrors.motherOfBride = 'اسم ام العروس كاملا مطلوب'
-      if (!formData.motherOfGroom.trim()) nextErrors.motherOfGroom = 'اسم ام العريس كاملا مطلوب'
+      if (!formData.brideNameAr.trim()) nextErrors.brideNameAr = 'اسم صاحبة المناسبة مطلوب'
+      if (!formData.groomNameAr.trim()) nextErrors.groomNameAr = 'اسم صاحب المناسبة مطلوب'
+      if (!formData.fatherOfBride.trim()) nextErrors.fatherOfBride = 'اسم والد صاحبة المناسبة مطلوب'
+      if (!formData.fatherOfGroom.trim()) nextErrors.fatherOfGroom = 'اسم والد صاحب المناسبة مطلوب'
+      const isEngagement = selectedOccasion === 'engagement' || template?.type === 'B'
+      if (!isEngagement) {
+        if (!formData.motherOfBride.trim()) nextErrors.motherOfBride = 'اسم والدة صاحبة المناسبة مطلوب'
+        if (!formData.motherOfGroom.trim()) nextErrors.motherOfGroom = 'اسم والدة صاحب المناسبة مطلوب'
+      }
     }
 
     if (step === 3) {
       if (!formData.date) nextErrors.date = 'التاريخ مطلوب'
-      if (template?.type !== 'B') {
+      const isEngagement = selectedOccasion === 'engagement' || template?.type === 'B'
+      const isAnnouncementOnly = isEngagement && formData.invitationType === 'announcement'
+      if (!isAnnouncementOnly) {
         if (!formData.hallLocation.trim()) nextErrors.hallLocation = 'اسم القاعة مطلوب'
         if (!formData.receptionHour) nextErrors.receptionHour = 'حدد وقت الاستقبال'
+      }
+      if (!isEngagement) {
         if (!formData.zaffaHour) nextErrors.zaffaHour = 'حدد وقت الزفة'
       }
     }
@@ -249,6 +265,7 @@ export default function TemplateDetailPage() {
     setFormData((prev) => ({
       ...prev,
       date: isoDate,
+      engagementDate: isoDate,
       dateText: formatted,
       weddingDay: weekDay,
       fullDateLine: mergedDateLine,
@@ -291,12 +308,23 @@ export default function TemplateDetailPage() {
         const docRef = doc(db, 'templates', templateId)
         const docSnap = await getDoc(docRef)
         if (docSnap.exists()) {
-          setTemplate({
+          const nextTemplate = {
             id: docSnap.id,
             ...docSnap.data(),
             createdAt: docSnap.data().createdAt?.toDate() || new Date(),
             updatedAt: docSnap.data().updatedAt?.toDate() || new Date(),
-          } as Template)
+          } as Template
+          const expectedType =
+            selectedOccasion === 'wedding' ? 'A' : selectedOccasion === 'engagement' ? 'B' : selectedOccasion === 'special' ? 'C' : ''
+          if (expectedType && nextTemplate.type !== expectedType) {
+            const params = new URLSearchParams()
+            if (selectedOccasion) params.set('occasion', selectedOccasion)
+            if (packageGuests) params.set('packageGuests', packageGuests)
+            if (packagePrice) params.set('packagePrice', packagePrice)
+            router.replace(`/templates?${params.toString()}`)
+            return
+          }
+          setTemplate(nextTemplate)
         }
       } catch (error) {
         console.error('Error fetching template:', error)
@@ -308,7 +336,7 @@ export default function TemplateDetailPage() {
     if (templateId) {
       fetchTemplate()
     }
-  }, [hasValidPackage, templateId])
+  }, [hasValidPackage, packageGuests, packagePrice, router, selectedOccasion, templateId])
 
   useEffect(() => {
     if (!templateId) return
@@ -323,6 +351,12 @@ export default function TemplateDetailPage() {
         setFormData((prev) => ({
           ...prev,
           ...savedForm,
+          date: savedForm.date || savedForm.engagementDate || prev.date,
+          engagementDate: savedForm.engagementDate || savedForm.date || prev.engagementDate,
+          invitationType:
+            savedForm.invitationType === 'announcement' || savedForm.invitationType === 'attendance'
+              ? savedForm.invitationType
+              : prev.invitationType,
           receptionHour: savedForm.receptionHour || parsedReception.hour,
           receptionMinute: savedForm.receptionMinute || parsedReception.minute,
           receptionPeriod: savedForm.receptionPeriod || parsedReception.period,
@@ -371,7 +405,19 @@ export default function TemplateDetailPage() {
         if (!response.ok || !data?.draft) return
 
         const draft = data.draft as { currentStep?: number; formData?: Record<string, any>; updatedAt?: string }
-        setFormData((prev) => ({ ...prev, ...(draft.formData || {}) }))
+        setFormData((prev) => {
+          const incoming = (draft.formData || {}) as Record<string, any>
+          return {
+            ...prev,
+            ...incoming,
+            date: incoming.date || incoming.engagementDate || prev.date,
+            engagementDate: incoming.engagementDate || incoming.date || prev.engagementDate,
+            invitationType:
+              incoming.invitationType === 'announcement' || incoming.invitationType === 'attendance'
+                ? incoming.invitationType
+                : prev.invitationType,
+          }
+        })
         if (draft.currentStep) {
           setCurrentStep(Math.max(1, Math.min(5, Number(draft.currentStep) || 1)) as StepId)
         }
@@ -418,9 +464,15 @@ export default function TemplateDetailPage() {
             title:
               `دعوة ${formData.groomNameAr || ''} ${formData.brideNameAr || ''}`.trim() ||
               `دعوة ${template?.name || ''}`.trim() ||
-              'دعوة جديدة',
+              'دعوة مناسبة جديدة',
             groomName: formData.groomNameAr || '',
             brideName: formData.brideNameAr || '',
+            groomNameAr: formData.groomNameAr || '',
+            brideNameAr: formData.brideNameAr || '',
+            brideFatherName: formData.fatherOfBride || '',
+            groomFatherName: formData.fatherOfGroom || '',
+            engagementDate: formData.date || '',
+            invitationType: formData.invitationType || 'attendance',
             date: formData.date || '',
             time: receptionTimeLine || '',
             locationName: formData.hallLocation || '',
@@ -525,6 +577,11 @@ export default function TemplateDetailPage() {
     }
     return `${base} border border-gray-300 focus:ring-2 focus:ring-primary/25`
   }
+
+  const isEngagementFlow = selectedOccasion === 'engagement' || template?.type === 'B'
+  const isSpecialFlow = selectedOccasion === 'special' || template?.type === 'C'
+  const isAnnouncementOnly = isEngagementFlow && formData.invitationType === 'announcement'
+  const occasionPeopleTitle = isSpecialFlow ? 'بيانات أصحاب المناسبة' : 'أسماء أصحاب المناسبة'
 
   const renderReviewRow = (label: string, value: string) => (
     <div className="flex items-start justify-between gap-4 border-b border-gray-100 py-2.5 last:border-b-0">
@@ -636,12 +693,14 @@ export default function TemplateDetailPage() {
 
             {currentStep === 2 && (
               <div className="space-y-6">
-                <h2 className="text-2xl md:text-3xl font-bold">بيانات العروس والعريس</h2>
+                <h2 className="text-2xl md:text-3xl font-bold">{occasionPeopleTitle}</h2>
                 <div className="rounded-2xl border border-pink-200 bg-pink-50 p-4 md:p-5 shadow-sm">
-                  <h3 className="text-xl font-bold text-pink-700 mb-4">💍 بيانات العروس</h3>
+                  <h3 className="text-xl font-bold text-pink-700 mb-4">💍 بيانات صاحبة المناسبة</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block mb-2 font-semibold">اسم العروس (الاسم الأول فقط) *</label>
+                      <label className="block mb-2 font-semibold">
+                        اسم صاحبة المناسبة *
+                      </label>
                       <input
                         type="text"
                         value={formData.brideNameAr}
@@ -651,7 +710,9 @@ export default function TemplateDetailPage() {
                       {stepErrors.brideNameAr && <p className="text-xs text-red-600 mt-1">{stepErrors.brideNameAr}</p>}
                     </div>
                     <div>
-                      <label className="block mb-2 font-semibold">اسم اب العروس والعائله *</label>
+                      <label className="block mb-2 font-semibold">
+                        اسم والد صاحبة المناسبة *
+                      </label>
                       <input
                         type="text"
                         value={formData.fatherOfBride}
@@ -660,24 +721,28 @@ export default function TemplateDetailPage() {
                       />
                       {stepErrors.fatherOfBride && <p className="text-xs text-red-600 mt-1">{stepErrors.fatherOfBride}</p>}
                     </div>
-                    <div className="md:col-span-2">
-                      <label className="block mb-2 font-semibold">اسم ام العروس كاملا *</label>
-                      <input
-                        type="text"
-                        value={formData.motherOfBride}
-                        onChange={(e) => updateField('motherOfBride', e.target.value)}
-                        className={getInputClass('motherOfBride', 'pink')}
-                      />
-                      {stepErrors.motherOfBride && <p className="text-xs text-red-600 mt-1">{stepErrors.motherOfBride}</p>}
-                    </div>
+                    {!isEngagementFlow && (
+                      <div className="md:col-span-2">
+                        <label className="block mb-2 font-semibold">اسم والدة صاحبة المناسبة *</label>
+                        <input
+                          type="text"
+                          value={formData.motherOfBride}
+                          onChange={(e) => updateField('motherOfBride', e.target.value)}
+                          className={getInputClass('motherOfBride', 'pink')}
+                        />
+                        {stepErrors.motherOfBride && <p className="text-xs text-red-600 mt-1">{stepErrors.motherOfBride}</p>}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 md:p-5 shadow-sm">
-                  <h3 className="text-xl font-bold text-sky-700 mb-4">🤵 بيانات العريس</h3>
+                  <h3 className="text-xl font-bold text-sky-700 mb-4">🤵 بيانات صاحب المناسبة</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block mb-2 font-semibold">اسم العريس (الاسم الأول فقط) *</label>
+                      <label className="block mb-2 font-semibold">
+                        اسم صاحب المناسبة *
+                      </label>
                       <input
                         type="text"
                         value={formData.groomNameAr}
@@ -687,7 +752,9 @@ export default function TemplateDetailPage() {
                       {stepErrors.groomNameAr && <p className="text-xs text-red-600 mt-1">{stepErrors.groomNameAr}</p>}
                     </div>
                     <div>
-                      <label className="block mb-2 font-semibold">اسم اب العريس والعائله *</label>
+                      <label className="block mb-2 font-semibold">
+                        اسم والد صاحب المناسبة *
+                      </label>
                       <input
                         type="text"
                         value={formData.fatherOfGroom}
@@ -696,16 +763,18 @@ export default function TemplateDetailPage() {
                       />
                       {stepErrors.fatherOfGroom && <p className="text-xs text-red-600 mt-1">{stepErrors.fatherOfGroom}</p>}
                     </div>
-                    <div className="md:col-span-2">
-                      <label className="block mb-2 font-semibold">اسم ام العريس كاملا *</label>
-                      <input
-                        type="text"
-                        value={formData.motherOfGroom}
-                        onChange={(e) => updateField('motherOfGroom', e.target.value)}
-                        className={getInputClass('motherOfGroom', 'sky')}
-                      />
-                      {stepErrors.motherOfGroom && <p className="text-xs text-red-600 mt-1">{stepErrors.motherOfGroom}</p>}
-                    </div>
+                    {!isEngagementFlow && (
+                      <div className="md:col-span-2">
+                        <label className="block mb-2 font-semibold">اسم والدة صاحب المناسبة *</label>
+                        <input
+                          type="text"
+                          value={formData.motherOfGroom}
+                          onChange={(e) => updateField('motherOfGroom', e.target.value)}
+                          className={getInputClass('motherOfGroom', 'sky')}
+                        />
+                        {stepErrors.motherOfGroom && <p className="text-xs text-red-600 mt-1">{stepErrors.motherOfGroom}</p>}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -718,7 +787,9 @@ export default function TemplateDetailPage() {
                   <h3 className="text-xl font-bold text-rose-700 mb-4">📅 تفاصيل المناسبة</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block mb-2 font-semibold">التاريخ *</label>
+                      <label className="block mb-2 font-semibold">
+                        {isEngagementFlow ? 'تاريخ الخطوبة *' : 'التاريخ *'}
+                      </label>
                       <input
                         type="date"
                         value={formData.date}
@@ -727,21 +798,23 @@ export default function TemplateDetailPage() {
                       />
                       {stepErrors.date && <p className="text-xs text-red-600 mt-1">{stepErrors.date}</p>}
                     </div>
-                    <div>
-                      <label className="block mb-2 font-semibold">يوم العرس</label>
-                      <select
-                        value={formData.weddingDay}
-                        onChange={(e) => updateField('weddingDay', e.target.value)}
-                        className={getInputClass('weddingDay', 'rose')}
-                      >
-                        <option value="">اختر اليوم</option>
-                        {AR_WEEKDAYS.map((day) => (
-                          <option key={day} value={day}>
-                            {day}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    {!isEngagementFlow && (
+                      <div>
+                        <label className="block mb-2 font-semibold">يوم المناسبة</label>
+                        <select
+                          value={formData.weddingDay}
+                          onChange={(e) => updateField('weddingDay', e.target.value)}
+                          className={getInputClass('weddingDay', 'rose')}
+                        >
+                          <option value="">اختر اليوم</option>
+                          {AR_WEEKDAYS.map((day) => (
+                            <option key={day} value={day}>
+                              {day}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     <div className="md:col-span-2">
                       <label className="block mb-2 font-semibold">سطر التاريخ ميلادي وهجري</label>
                       <input
@@ -751,54 +824,84 @@ export default function TemplateDetailPage() {
                         className={getInputClass('fullDateLine', 'rose')}
                       />
                     </div>
-                    <div className="md:col-span-2">
-                      <label className="block mb-2 font-semibold">اسم القاعة{template.type !== 'B' ? ' *' : ''}</label>
-                      <input
-                        type="text"
-                        value={formData.hallLocation}
-                        onChange={(e) => updateField('hallLocation', e.target.value)}
-                        className={getInputClass('hallLocation', 'rose')}
-                      />
-                      {stepErrors.hallLocation && <p className="text-xs text-red-600 mt-1">{stepErrors.hallLocation}</p>}
-                    </div>
-
-                    {template.type !== 'B' && (
-                      <>
-                        <div>
-                          <label className="block mb-2 font-semibold">وقت الاستقبال *</label>
-                          <div className="grid grid-cols-3 gap-2">
-                            <select
-                              value={formData.receptionHour}
-                              onChange={(e) => updateField('receptionHour', e.target.value)}
-                              className={getInputClass('receptionHour', 'rose')}
-                            >
-                              <option value="">الساعة</option>
-                              {HOUR_OPTIONS.map((hour) => (
-                                <option key={`r-hour-${hour}`} value={hour}>{hour}</option>
-                              ))}
-                            </select>
-                            <select
-                              value={formData.receptionMinute}
-                              onChange={(e) => updateField('receptionMinute', (e.target.value as '00' | '30') || '00')}
-                              className={getInputClass('receptionMinute', 'rose')}
-                            >
-                              {MINUTE_OPTIONS.map((minute) => (
-                                <option key={`r-minute-${minute}`} value={minute}>{minute}</option>
-                              ))}
-                            </select>
-                            <select
-                              value={formData.receptionPeriod}
-                              onChange={(e) => updateField('receptionPeriod', (e.target.value as TimePeriod) || 'PM')}
-                              className={getInputClass('receptionPeriod', 'rose')}
-                            >
-                              {PERIOD_OPTIONS.map((period) => (
-                                <option key={`r-period-${period.value}`} value={period.value}>{period.label}</option>
-                              ))}
-                            </select>
-                          </div>
-                          {stepErrors.receptionHour && <p className="text-xs text-red-600 mt-1">{stepErrors.receptionHour}</p>}
+                    {isEngagementFlow && (
+                      <div className="md:col-span-2 rounded-xl border border-rose-200 bg-white p-4">
+                        <label className="mb-3 block font-semibold">هل هذه:</label>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 hover:bg-rose-50">
+                            <input
+                              type="radio"
+                              name="invitationType"
+                              value="attendance"
+                              checked={formData.invitationType === 'attendance'}
+                              onChange={() => updateField('invitationType', 'attendance')}
+                            />
+                            <span className="text-sm font-medium">دعوة حضور</span>
+                          </label>
+                          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 hover:bg-rose-50">
+                            <input
+                              type="radio"
+                              name="invitationType"
+                              value="announcement"
+                              checked={formData.invitationType === 'announcement'}
+                              onChange={() => updateField('invitationType', 'announcement')}
+                            />
+                            <span className="text-sm font-medium">إعلان خطوبة فقط</span>
+                          </label>
                         </div>
+                      </div>
+                    )}
 
+                    <div
+                      className={`md:col-span-2 grid grid-cols-1 gap-4 transition-all duration-300 ${
+                        isAnnouncementOnly ? 'max-h-0 overflow-hidden opacity-0 pointer-events-none' : 'max-h-[500px] opacity-100'
+                      }`}
+                    >
+                      <div>
+                        <label className="block mb-2 font-semibold">مكان المناسبة{isEngagementFlow ? '' : ' *'}</label>
+                        <input
+                          type="text"
+                          value={formData.hallLocation}
+                          onChange={(e) => updateField('hallLocation', e.target.value)}
+                          className={getInputClass('hallLocation', 'rose')}
+                        />
+                        {stepErrors.hallLocation && <p className="text-xs text-red-600 mt-1">{stepErrors.hallLocation}</p>}
+                      </div>
+                      <div>
+                        <label className="block mb-2 font-semibold">وقت الاستقبال *</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          <select
+                            value={formData.receptionHour}
+                            onChange={(e) => updateField('receptionHour', e.target.value)}
+                            className={getInputClass('receptionHour', 'rose')}
+                          >
+                            <option value="">الساعة</option>
+                            {HOUR_OPTIONS.map((hour) => (
+                              <option key={`r-hour-${hour}`} value={hour}>{hour}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={formData.receptionMinute}
+                            onChange={(e) => updateField('receptionMinute', (e.target.value as '00' | '30') || '00')}
+                            className={getInputClass('receptionMinute', 'rose')}
+                          >
+                            {MINUTE_OPTIONS.map((minute) => (
+                              <option key={`r-minute-${minute}`} value={minute}>{minute}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={formData.receptionPeriod}
+                            onChange={(e) => updateField('receptionPeriod', (e.target.value as TimePeriod) || 'PM')}
+                            className={getInputClass('receptionPeriod', 'rose')}
+                          >
+                            {PERIOD_OPTIONS.map((period) => (
+                              <option key={`r-period-${period.value}`} value={period.value}>{period.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        {stepErrors.receptionHour && <p className="text-xs text-red-600 mt-1">{stepErrors.receptionHour}</p>}
+                      </div>
+                      {!isEngagementFlow && (
                         <div>
                           <label className="block mb-2 font-semibold">وقت الزفة *</label>
                           <div className="grid grid-cols-3 gap-2">
@@ -833,8 +936,8 @@ export default function TemplateDetailPage() {
                           </div>
                           {stepErrors.zaffaHour && <p className="text-xs text-red-600 mt-1">{stepErrors.zaffaHour}</p>}
                         </div>
-                      </>
-                    )}
+                      )}
+                    </div>
 
                     <label className="flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-3">
                       <input
@@ -854,6 +957,18 @@ export default function TemplateDetailPage() {
                     </label>
                   </div>
                 </div>
+                {(template.assets?.thumbUrl || template.assets?.backgroundUrl) && (
+                  <div className="rounded-2xl border border-gray-100 bg-[#faf9ff] p-4 md:p-5">
+                    <p className="mb-3 text-xs text-gray-500">معاينة التصميم المختار</p>
+                    <div className="mx-auto w-40 max-w-full aspect-[9/16] overflow-hidden rounded-xl border border-gray-200 bg-white">
+                      <img
+                        src={template.assets?.thumbUrl || template.assets?.backgroundUrl}
+                        alt={template.name}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -867,34 +982,45 @@ export default function TemplateDetailPage() {
                 <div className="rounded-3xl border border-gray-200 bg-white p-5 md:p-8 shadow-sm">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="space-y-6">
-                      <h3 className="text-lg font-bold text-primary">أسماء العائلة</h3>
+                      <h3 className="text-lg font-bold text-primary">أسماء أصحاب المناسبة</h3>
                       <div className="rounded-2xl border border-gray-100 bg-[#fcfbff] p-4 md:p-5 space-y-4">
                         <div className="space-y-1">
-                          <p className="text-xs text-gray-500">العروس</p>
+                          <p className="text-xs text-gray-500">{isEngagementFlow ? 'صاحبة المناسبة' : 'العروس'}</p>
                           <p className="text-2xl md:text-3xl font-bold text-textDark">{formData.brideNameAr || '-'}</p>
                         </div>
                         <div className="h-px bg-gray-200" />
                         <div className="space-y-1">
-                          <p className="text-xs text-gray-500">العريس</p>
+                          <p className="text-xs text-gray-500">{isEngagementFlow ? 'صاحب المناسبة' : 'العريس'}</p>
                           <p className="text-2xl md:text-3xl font-bold text-textDark">{formData.groomNameAr || '-'}</p>
                         </div>
                       </div>
                       <div className="rounded-2xl border border-gray-100 bg-[#fffefd] p-4 md:p-5">
-                        {renderReviewRow('أب العروس والعائلة', formData.fatherOfBride)}
-                        {renderReviewRow('أم العروس', formData.motherOfBride)}
-                        {renderReviewRow('أب العريس والعائلة', formData.fatherOfGroom)}
-                        {renderReviewRow('أم العريس', formData.motherOfGroom)}
+                        {renderReviewRow(
+                          isEngagementFlow ? 'اسم والد صاحبة المناسبة' : 'أب العروس والعائلة',
+                          formData.fatherOfBride
+                        )}
+                        {!isEngagementFlow && renderReviewRow('أم العروس', formData.motherOfBride)}
+                        {renderReviewRow(
+                          isEngagementFlow ? 'اسم والد صاحب المناسبة' : 'أب العريس والعائلة',
+                          formData.fatherOfGroom
+                        )}
+                        {!isEngagementFlow && renderReviewRow('أم العريس', formData.motherOfGroom)}
                       </div>
                     </div>
 
                     <div className="space-y-6 lg:border-s lg:border-gray-100 lg:ps-8">
                       <h3 className="text-lg font-bold text-primary">تفاصيل المناسبة</h3>
                       <div className="rounded-2xl border border-gray-100 bg-[#fffefd] p-4 md:p-5">
-                        {renderReviewRow('اليوم', formData.weddingDay)}
+                        {!isEngagementFlow && renderReviewRow('اليوم', formData.weddingDay)}
                         {renderReviewRow('التاريخ', formData.fullDateLine || formData.date)}
-                        {renderReviewRow('اسم القاعة', formData.hallLocation)}
-                        {template.type !== 'B' && renderReviewRow('وقت الاستقبال', receptionTimeValue)}
-                        {template.type !== 'B' && renderReviewRow('وقت الزفة', zaffaTimeValue)}
+                        {!isAnnouncementOnly && renderReviewRow('مكان المناسبة', formData.hallLocation)}
+                        {!isAnnouncementOnly && renderReviewRow('وقت الاستقبال', receptionTimeValue)}
+                        {!isEngagementFlow && renderReviewRow('وقت الزفة', zaffaTimeValue)}
+                        {isEngagementFlow &&
+                          renderReviewRow(
+                            'نوع الدعوة',
+                            formData.invitationType === 'announcement' ? 'إعلان خطوبة فقط' : 'دعوة حضور'
+                          )}
                         {renderReviewRow('ممنوع اصطحاب الأطفال', formData.noKids ? 'نعم' : 'لا')}
                         {renderReviewRow('ممنوع التصوير', formData.noPhotography ? 'نعم' : 'لا')}
                       </div>

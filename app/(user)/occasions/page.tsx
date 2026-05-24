@@ -14,7 +14,7 @@ import { parsePackageFromParams, readPackageFromSessionStorage } from '@/lib/flo
 const FLOW_STEPS = [
   { id: 1, label: 'نوع المناسبة' },
   { id: 2, label: 'اختيار القالب' },
-  { id: 3, label: 'بيانات العروس والعريس' },
+  { id: 3, label: 'بيانات المناسبة' },
   { id: 4, label: 'تفاصيل المناسبة' },
   { id: 5, label: 'الدفع' },
 ]
@@ -80,7 +80,6 @@ export default function OccasionsPage() {
           <section className="rounded-3xl border border-violet-100 bg-white p-6 md:p-8 shadow-sm mb-6">
             <h1 className="text-3xl md:text-4xl font-bold mb-2">بشارة .. لتخليد ذكرى سعيدة ✨</h1>
             <p className="text-lg text-textDark mb-2">حياك الله {name || 'عزيزنا'} عسى افراحكم تدوم ✨</p>
-            <p className="text-sm text-muted">اختر المناسبة → اختر القالب → أدخل التفاصيل → ادفع</p>
             {(packageGuests || packagePrice) && (
               <div className="mt-4 inline-flex gap-2 rounded-xl border border-primary/20 bg-primarySoft px-4 py-2 text-sm">
                 <span>الباقة المختارة:</span>

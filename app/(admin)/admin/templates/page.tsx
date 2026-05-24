@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth/context'
 import { isAdminEmailClient } from '@/lib/auth/admin-access'
 import type { TemplateType } from '@/lib/template-presets/types'
-import { Upload, Save, X } from 'lucide-react'
+import { ArrowLeft, Upload, Save, X } from 'lucide-react'
 
 export default function AdminTemplatesPage() {
+  const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const isAdmin = isAdminEmailClient(user?.email)
   const [loading, setLoading] = useState(false)
@@ -148,7 +150,8 @@ export default function AdminTemplatesPage() {
       if (!uploadResponse.ok) {
         const errorMsg = responseData.error || 'فشل رفع الملف'
         console.error('❌ [CLIENT] Upload error:', responseData)
-        throw new Error(errorMsg)
+        const hint = responseData?.hint ? `\n\n${responseData.hint}` : ''
+        throw new Error(`${errorMsg}${hint}`)
       }
 
       const { backgroundUrl, backgroundPdfUrl, thumbUrl } = responseData
@@ -174,7 +177,7 @@ export default function AdminTemplatesPage() {
     } catch (error: any) {
       console.error('Error uploading template:', error)
       const errorMsg = error.message || 'حدث خطأ أثناء رفع التصميم'
-      alert(`خطأ: ${errorMsg}\n\nتأكد من نشر قواعد Firebase Storage في Firebase Console.`)
+      alert(`خطأ: ${errorMsg}`)
     } finally {
       setLoading(false)
     }
@@ -184,6 +187,16 @@ export default function AdminTemplatesPage() {
     <div className="min-h-screen bg-bg p-4">
       <div className="container mx-auto max-w-2xl">
         <div className="bg-white rounded-2xl p-8 shadow-lg">
+          <div className="mb-4">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              <ArrowLeft size={16} />
+              رجوع
+            </button>
+          </div>
           <h1 className="text-3xl font-bold mb-6">Upload Template</h1>
 
           <form onSubmit={handleSubmit} className="space-y-6">

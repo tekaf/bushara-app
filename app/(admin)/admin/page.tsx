@@ -1,262 +1,153 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import {
+  BadgeCheck,
+  Banknote,
+  CreditCard,
+  Percent,
+  Send,
+  ShoppingCart,
+  TrendingUp,
+  UserPlus,
+  Users,
+  Wallet,
+  XCircle,
+  ClipboardList,
+  MessageCircle,
+} from 'lucide-react'
 import { useAuth } from '@/lib/auth/context'
-import { useRouter } from 'next/navigation'
-import { Upload, Settings, Grid, Palette, Type, FileImage, Bot, Images, ImagePlus, ClipboardCheck } from 'lucide-react'
-import Link from 'next/link'
-import { isAdminEmailClient } from '@/lib/auth/admin-access'
+import AdminQuickActions from '@/components/admin/AdminQuickActions'
+import AdminActivityFeed from '@/components/admin/AdminActivityFeed'
+import AdminDashboardCharts from '@/components/admin/AdminDashboardCharts'
+import MetricCard from '@/components/admin/MetricCard'
+import type {
+  ActivityFeedItem,
+  ChartPoint,
+  DashboardMetrics,
+  DashboardPeriod,
+  FunnelStep,
+  MetricTrend,
+} from '@/lib/analytics/types'
+
+const EMPTY_METRIC: MetricTrend = { value: 0, previousValue: 0, changePercent: 0, sparkline: [] }
+
+const EMPTY_METRICS: DashboardMetrics = {
+  totalRevenue: EMPTY_METRIC,
+  revenueToday: EMPTY_METRIC,
+  ordersToday: EMPTY_METRIC,
+  successfulPayments: EMPTY_METRIC,
+  failedPayments: EMPTY_METRIC,
+  conversionRate: EMPTY_METRIC,
+  pendingWorkshop: EMPTY_METRIC,
+  approvedInvitations: EMPTY_METRIC,
+  invitationsSent: EMPTY_METRIC,
+  whatsappSuccessRate: EMPTY_METRIC,
+  activeUsers: EMPTY_METRIC,
+  newUsers: EMPTY_METRIC,
+}
 
 export default function AdminDashboardPage() {
-  const { user, loading: authLoading } = useAuth()
-  const router = useRouter()
-  const isAdmin = isAdminEmailClient(user?.email)
+  const { user } = useAuth()
+  const [period, setPeriod] = useState<DashboardPeriod>('monthly')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [metrics, setMetrics] = useState<DashboardMetrics>(EMPTY_METRICS)
+  const [charts, setCharts] = useState<ChartPoint[]>([])
+  const [funnel, setFunnel] = useState<FunnelStep[]>([])
+  const [activity, setActivity] = useState<ActivityFeedItem[]>([])
+  const [topTemplates, setTopTemplates] = useState<Array<{ id: string; label: string; value: number }>>([])
+  const [topPackages, setTopPackages] = useState<Array<{ id: string; label: string; value: number }>>([])
 
-  // Require Firebase authentication
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-bg flex items-center justify-center p-4">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted">جاري التحميل...</p>
-        </div>
-      </div>
-    )
-  }
+  const loadDashboard = useCallback(async () => {
+    if (!user) return
+    try {
+      setLoading(true)
+      setError('')
+      const token = await user.getIdToken()
+      const response = await fetch(`/api/admin/analytics/dashboard?period=${period}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data?.error || 'تعذر تحميل بيانات لوحة التحكم')
 
-  if (!user || !isAdmin) {
-    return (
-      <div className="min-h-screen bg-bg flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl p-8 shadow-lg max-w-md w-full text-center">
-          <h1 className="text-2xl font-bold mb-4">Admin Access Required</h1>
-          <p className="text-muted mb-6">
-            {!user
-              ? 'You must be logged in to access this page.'
-              : 'Your account is logged in, but does not have admin access.'}
-          </p>
-          <a
-            href="/login"
-            className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-accent transition-colors inline-block"
-          >
-            {!user ? 'Go to Login' : 'Back to Home'}
-          </a>
-        </div>
-      </div>
-    )
-  }
+      setMetrics(data.metrics || EMPTY_METRICS)
+      setCharts(Array.isArray(data.charts) ? data.charts : [])
+      setFunnel(Array.isArray(data.funnel) ? data.funnel : [])
+      setActivity(Array.isArray(data.activity) ? data.activity : [])
+      setTopTemplates(Array.isArray(data.topTemplates) ? data.topTemplates : [])
+      setTopPackages(Array.isArray(data.topPackages) ? data.topPackages : [])
+    } catch (e: any) {
+      setError(e?.message || 'تعذر تحميل بيانات لوحة التحكم')
+    } finally {
+      setLoading(false)
+    }
+  }, [period, user])
+
+  useEffect(() => {
+    loadDashboard()
+  }, [loadDashboard])
 
   return (
-    <div className="min-h-screen bg-bg p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">لوحة تحكم الإدارة</h1>
-          <p className="text-muted">إدارة التصاميم والنماذج والإعدادات</p>
-        </div>
+    <div className="mx-auto max-w-[1600px] space-y-6">
+      <section className="rounded-admin-lg border border-admin-border bg-gradient-to-l from-admin-surface via-admin-surface to-primarySoft/30 p-5 shadow-admin md:p-6">
+        <p className="mb-1 text-xs font-medium text-primary">Bushara Admin OS</p>
+        <h2 className="text-2xl font-bold text-textDark md:text-3xl">مركز التشغيل</h2>
+        <p className="mt-1 max-w-2xl text-sm text-muted">
+          نظرة حية على الإيرادات، الطلبات، ورشة التأكد، وإرسال الدعوات — كلها من بيانات Firestore وStripe الفعلية.
+        </p>
+      </section>
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Upload Templates Section */}
-          <Link
-            href="/admin/templates"
-            className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
-                <Upload className="w-6 h-6 text-blue-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">رفع التصاميم</h2>
-                <p className="text-sm text-muted">إضافة تصميمات جديدة</p>
-              </div>
-            </div>
-            <p className="text-muted text-sm">
-              ارفع تصميمات خلفية جديدة وقم بتصنيفها حسب النوع (A, B, C)
-            </p>
-          </Link>
+      <AdminQuickActions />
 
-          {/* Edit Preset Type A */}
-          <Link
-            href="/admin/presets/A"
-            className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
-                <Settings className="w-6 h-6 text-purple-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">تعديل النموذج A</h2>
-                <p className="text-sm text-muted">تصميم بسيط / حر</p>
-              </div>
-            </div>
-            <p className="text-muted text-sm">
-              تعديل مواضع النصوص، الألوان، وأحجام الخطوط لجميع التصاميم من النوع A
-            </p>
-          </Link>
+      {error ? (
+        <div className="rounded-admin border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+      ) : null}
 
-          {/* Edit Preset Type B */}
-          <Link
-            href="/admin/presets/B"
-            className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
-                <Grid className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">تعديل النموذج B</h2>
-                <p className="text-sm text-muted">عقد قران / خطوبة / ملكة</p>
-              </div>
-            </div>
-            <p className="text-muted text-sm">
-              تعديل مواضع النصوص، الألوان، وأحجام الخطوط لجميع التصاميم من النوع B
-            </p>
-          </Link>
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <MetricCard label="إجمالي الإيرادات" metric={metrics.totalRevenue} icon={Wallet} format="currency" loading={loading} />
+        <MetricCard label="إيرادات اليوم" metric={metrics.revenueToday} icon={Banknote} format="currency" loading={loading} />
+        <MetricCard label="طلبات اليوم" metric={metrics.ordersToday} icon={ShoppingCart} loading={loading} />
+        <MetricCard label="مدفوعات ناجحة" metric={metrics.successfulPayments} icon={CreditCard} loading={loading} />
+        <MetricCard label="مدفوعات فاشلة" metric={metrics.failedPayments} icon={XCircle} loading={loading} />
+        <MetricCard label="معدل التحويل" metric={metrics.conversionRate} icon={Percent} format="percent" loading={loading} />
+        <MetricCard label="بانتظار الورشة" metric={metrics.pendingWorkshop} icon={ClipboardList} loading={loading} />
+        <MetricCard label="دعوات معتمدة" metric={metrics.approvedInvitations} icon={BadgeCheck} loading={loading} />
+        <MetricCard label="دعوات مُرسلة" metric={metrics.invitationsSent} icon={Send} loading={loading} />
+        <MetricCard label="نجاح WhatsApp" metric={metrics.whatsappSuccessRate} icon={MessageCircle} format="percent" loading={loading} />
+        <MetricCard label="مستخدمون نشطون" metric={metrics.activeUsers} icon={Users} loading={loading} />
+        <MetricCard label="مستخدمون جدد" metric={metrics.newUsers} icon={UserPlus} loading={loading} />
+      </section>
 
-          {/* Edit Preset Type C */}
-          <Link
-            href="/admin/presets/C"
-            className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors">
-                <Palette className="w-6 h-6 text-orange-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">تعديل النموذج C</h2>
-                <p className="text-sm text-muted">زخرفة في الأسفل</p>
-              </div>
-            </div>
-            <p className="text-muted text-sm">
-              تعديل مواضع النصوص، الألوان، وأحجام الخطوط لجميع التصاميم من النوع C
-            </p>
-          </Link>
+      <AdminDashboardCharts
+        charts={charts}
+        funnel={funnel}
+        topTemplates={topTemplates}
+        topPackages={topPackages}
+        period={period}
+        onPeriodChange={setPeriod}
+        loading={loading}
+      />
 
-          {/* View All Templates */}
-          <Link
-            href="/admin/templates/list"
-            className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-gray-100 rounded-lg group-hover:bg-gray-200 transition-colors">
-                <FileImage className="w-6 h-6 text-gray-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">عرض جميع التصاميم</h2>
-                <p className="text-sm text-muted">قائمة التصاميم</p>
-              </div>
-            </div>
-            <p className="text-muted text-sm">
-              عرض وإدارة جميع التصاميم المرفوعة (قديم وجديد)
-            </p>
-          </Link>
-
-          <Link
-            href="/admin/previous-examples"
-            className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-fuchsia-100 rounded-lg group-hover:bg-fuchsia-200 transition-colors">
-                <Images className="w-6 h-6 text-fuchsia-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">الدعوات السابقة</h2>
-                <p className="text-sm text-muted">محتوى شريط الصفحة الرئيسية</p>
-              </div>
-            </div>
-            <p className="text-muted text-sm">
-              ارفع أعمالًا سابقة (PDF/صور) لتظهر تلقائيًا في شريط نماذج الأعمال.
-            </p>
-          </Link>
-
-          <Link
-            href="/admin/home-assets"
-            className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-cyan-100 rounded-lg group-hover:bg-cyan-200 transition-colors">
-                <ImagePlus className="w-6 h-6 text-cyan-700" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">صور الصفحة الرئيسية</h2>
-                <p className="text-sm text-muted">Hero + نموذج دعوة سابقة</p>
-              </div>
-            </div>
-            <p className="text-muted text-sm">
-              ارفع صور فقرة البداية ونموذج الدعوة السابقة بجودة أصلية عالية.
-            </p>
-          </Link>
-
-          {/* Future: User Designs Management */}
-          <div className="bg-gray-50 rounded-2xl p-6 border-2 border-dashed border-gray-300">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-gray-200 rounded-lg">
-                <Type className="w-6 h-6 text-gray-500" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-500">تصاميم المستخدمين</h2>
-                <p className="text-sm text-gray-400">قريباً</p>
-              </div>
-            </div>
-            <p className="text-gray-400 text-sm">
-              إدارة وتعديل تصاميم المستخدمين يدوياً في حالة وجود مشاكل
-            </p>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <AdminActivityFeed items={activity} loading={loading} />
+        <section className="rounded-admin-lg border border-admin-border bg-admin-surface p-4 shadow-admin md:p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-bold text-textDark">ملخص التشغيل</h2>
           </div>
-
-          <Link
-            href="/admin/invitations/review"
-            className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-amber-100 rounded-lg group-hover:bg-amber-200 transition-colors">
-                <ClipboardCheck className="w-6 h-6 text-amber-700" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">ورشة التأكد</h2>
-                <p className="text-sm text-muted">مراجعة الدعوات بعد الدفع</p>
-              </div>
-            </div>
-            <p className="text-muted text-sm">
-              فتح قائمة الدعوات في مرحلة المراجعة الداخلية واعتمادها أو إرجاعها للتعديل.
-            </p>
-          </Link>
-
-          <Link
-            href="/admin/invitations"
-            className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-slate-100 rounded-lg group-hover:bg-slate-200 transition-colors">
-                <ClipboardCheck className="w-6 h-6 text-slate-700" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">تشغيل الدعوات</h2>
-                <p className="text-sm text-muted">logs/jobs/queue (إداري فقط)</p>
-              </div>
-            </div>
-            <p className="text-muted text-sm">
-              صفحة داخلية لمتابعة التشغيل التقني للدعوات، منفصلة عن واجهة المستخدم النهائي.
-            </p>
-          </Link>
-
-          <Link
-            href="/admin/agent"
-            className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-indigo-100 rounded-lg group-hover:bg-indigo-200 transition-colors">
-                <Bot className="w-6 h-6 text-indigo-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">العامل الذكي 24/7</h2>
-                <p className="text-sm text-muted">تحليل المشروع تلقائيًا</p>
-              </div>
-            </div>
-            <p className="text-muted text-sm">
-              تقرير يومي ذكي لاكتشاف المخاطر والمتطلبات الناشئة مع اقتراحات تنفيذ.
-            </p>
-          </Link>
-        </div>
+          <ul className="space-y-3 text-sm text-muted">
+            <li className="rounded-admin border border-admin-borderLight bg-admin-surfaceSoft px-3 py-2">
+              البيانات تُجمع من `payments`, `invites`, `users`, `send_logs`, و`analytics_events`.
+            </li>
+            <li className="rounded-admin border border-admin-borderLight bg-admin-surfaceSoft px-3 py-2">
+              قمع التحويل يتحسن تلقائيًا كلما زادت أحداث التتبع في المنصة.
+            </li>
+            <li className="rounded-admin border border-admin-borderLight bg-admin-surfaceSoft px-3 py-2">
+              استخدم ورشة التأكد لإدارة SLA والمراجعات بسرعة.
+            </li>
+          </ul>
+        </section>
       </div>
     </div>
   )

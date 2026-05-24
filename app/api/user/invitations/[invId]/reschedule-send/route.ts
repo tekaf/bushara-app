@@ -3,6 +3,7 @@ import { getAuth } from 'firebase-admin/auth'
 import { FieldValue } from 'firebase-admin/firestore'
 import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
 import { getWorkflowTransitionError, INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
+import { releaseDispatchKernelLock, runDispatchProtection } from '@/lib/dispatch/kernel'
 
 export const runtime = 'nodejs'
 
@@ -74,22 +75,41 @@ export async function POST(request: NextRequest, { params }: { params: { invId: 
     const { uid, adminDb } = await getSession(request)
     const inviteId = String(params?.invId || '').trim()
     if (!inviteId) return NextResponse.json({ error: 'Missing invite id' }, { status: 400 })
-
-    const body = await request.json().catch(() => ({}))
-    const nextScheduledSendAt = parseScheduledAt(body?.scheduledSendAt)
-    const timezone = String(body?.timezone || 'Asia/Riyadh').trim() || 'Asia/Riyadh'
-    if (!nextScheduledSendAt) {
-      return NextResponse.json({ error: 'Invalid scheduledSendAt. Provide a valid ISO datetime.' }, { status: 400 })
+    const lockOwner = `reschedule-send:${uid}`
+    const protection = await runDispatchProtection({
+      adminDb,
+      source: 'reschedule_send',
+      inviteId,
+      checkGuestRelations: true,
+      blockOnFailure: true,
+      acquireLock: true,
+      lockOwner,
+    })
+    if (!protection.valid) {
+      return NextResponse.json(
+        { error: protection.reason, decision: protection.decision, inviteId, orderCode: protection.orderCode || '' },
+        { status: protection.decision === 'orphan_blocked' ? 404 : 409 }
+      )
     }
-    if (nextScheduledSendAt.getTime() <= Date.now()) {
-      return NextResponse.json({ error: 'scheduledSendAt must be in the future.' }, { status: 409 })
-    }
 
-    const inviteRef = adminDb.collection('invites').doc(inviteId)
-    const result = await adminDb.runTransaction(async (tx) => {
+    const lockKey = String(protection.lock?.key || '').trim()
+    try {
+      const body = await request.json().catch(() => ({}))
+      const nextScheduledSendAt = parseScheduledAt(body?.scheduledSendAt)
+      const timezone = String(body?.timezone || 'Asia/Riyadh').trim() || 'Asia/Riyadh'
+      if (!nextScheduledSendAt) {
+        return NextResponse.json({ error: 'Invalid scheduledSendAt. Provide a valid ISO datetime.' }, { status: 400 })
+      }
+      if (nextScheduledSendAt.getTime() <= Date.now()) {
+        return NextResponse.json({ error: 'scheduledSendAt must be in the future.' }, { status: 409 })
+      }
+
+      const inviteRef = adminDb.collection('invites').doc(inviteId)
+      const result = await adminDb.runTransaction(async (tx) => {
       const inviteSnap = await tx.get(inviteRef)
       if (!inviteSnap.exists) return { ok: false as const, status: 404, error: 'Invite not found' }
       const invite = inviteSnap.data() as any
+      const inviteOrderCode = String(invite?.orderCode || invite?.orderNumber || '').trim()
       if (String(invite?.ownerId || '') !== uid) {
         return { ok: false as const, status: 403, error: 'Forbidden' }
       }
@@ -178,6 +198,7 @@ export async function POST(request: NextRequest, { params }: { params: { invId: 
       const newJobRef = adminDb.collection('send_jobs').doc()
       tx.set(newJobRef, {
         inviteId,
+        orderCode: inviteOrderCode,
         scheduledAt: nextScheduledSendAt,
         status: 'scheduled',
         attempt: 0,
@@ -231,23 +252,28 @@ export async function POST(request: NextRequest, { params }: { params: { invId: 
         scheduledGuestsCount: schedulableGuests.length,
         workflowPath: workflowCheck.path,
       }
-    })
+      })
 
-    if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: result.status })
+      }
+
+      return NextResponse.json({
+        ok: true,
+        inviteId,
+        workflowStatus: INVITE_WORKFLOW_STATUS.SCHEDULED,
+        workflowPath: result.workflowPath,
+        replacedJobsCount: result.replacedJobsCount,
+        newJobId: result.newJobId,
+        scheduledGuestsCount: result.scheduledGuestsCount,
+        scheduledSendAt: nextScheduledSendAt.toISOString(),
+        timezone,
+      })
+    } finally {
+      if (lockKey) {
+        await releaseDispatchKernelLock(adminDb, { lockKey, lockOwner }).catch(() => null)
+      }
     }
-
-    return NextResponse.json({
-      ok: true,
-      inviteId,
-      workflowStatus: INVITE_WORKFLOW_STATUS.SCHEDULED,
-      workflowPath: result.workflowPath,
-      replacedJobsCount: result.replacedJobsCount,
-      newJobId: result.newJobId,
-      scheduledGuestsCount: result.scheduledGuestsCount,
-      scheduledSendAt: nextScheduledSendAt.toISOString(),
-      timezone,
-    })
   } catch (error: any) {
     const status = error?.message === 'Unauthorized' ? 401 : 500
     return NextResponse.json({ error: error?.message || 'Failed to reschedule send' }, { status })

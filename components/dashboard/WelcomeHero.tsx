@@ -9,7 +9,7 @@ export default function WelcomeHero({ name }: { name: string }) {
       <p className="text-base md:text-lg text-textDark mb-6">حياك الله {name || 'عزيزنا'} عسى افراحكم تدوم ✨</p>
       <div className="flex flex-col sm:flex-row gap-3">
         <Link
-          href="/occasions"
+          href="/packages"
           className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-white font-semibold hover:bg-accent transition-colors"
         >
           ابدأ دعوة جديدة

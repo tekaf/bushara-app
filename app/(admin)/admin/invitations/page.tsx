@@ -13,6 +13,7 @@ export default function AdminInvitationsOpsPage() {
   const [selectedInviteId, setSelectedInviteId] = useState('')
   const [statusData, setStatusData] = useState<any | null>(null)
   const [statusError, setStatusError] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     if (authLoading || !user || !isAdmin) return
@@ -20,7 +21,11 @@ export default function AdminInvitationsOpsPage() {
       setLoading(true)
       try {
         const token = await user.getIdToken()
-        const res = await fetch('/api/admin/invitations?limit=40', {
+        const q = searchQuery.trim()
+        const endpoint = q
+          ? `/api/admin/invitations?limit=80&q=${encodeURIComponent(q)}`
+          : '/api/admin/invitations?limit=40'
+        const res = await fetch(endpoint, {
           headers: { Authorization: `Bearer ${token}` },
         })
         const data = await res.json().catch(() => ({}))
@@ -33,7 +38,7 @@ export default function AdminInvitationsOpsPage() {
       }
     }
     load()
-  }, [authLoading, isAdmin, user])
+  }, [authLoading, isAdmin, searchQuery, user])
 
   const loadOps = async (inviteId: string) => {
     if (!user || !inviteId) return
@@ -65,6 +70,14 @@ export default function AdminInvitationsOpsPage() {
             الذهاب إلى ورشة التأكد
           </Link>
         </div>
+        <div className="mb-4">
+          <input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="ابحث عبر Order Code أو Invite ID"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary"
+          />
+        </div>
         <p className="mb-6 text-sm text-muted">
           هذه الصفحة داخلية للإدارة فقط، وتعرض معلومات التشغيل مثل jobs / logs / queue.
         </p>
@@ -88,7 +101,10 @@ export default function AdminInvitationsOpsPage() {
                   >
                     <p className="font-semibold">{inv.title || inv.id}</p>
                     <p className="text-xs text-muted">
-                      {inv.id} | {inv.workflowStatus || '-'}
+                      {inv.orderCode || '-'} | {inv.id}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {inv.workflowStatus || '-'}
                     </p>
                   </button>
                 ))}
@@ -103,6 +119,9 @@ export default function AdminInvitationsOpsPage() {
             ) : (
               <div className="space-y-3 text-sm">
                 <p>workflow: {statusData?.invitation?.workflowStatus || '-'}</p>
+                <p>orderCode: {statusData?.invitation?.orderCode || '-'}</p>
+                <p>dispatchMode: {statusData?.invitation?.dispatchMode || '-'}</p>
+                <p>dispatchStatus: {statusData?.invitation?.dispatchStatus || '-'}</p>
                 <p>pending: {statusData?.summary?.pendingGuests ?? 0}</p>
                 <p>sent: {statusData?.summary?.sentGuests ?? 0}</p>
                 <p>failed: {statusData?.summary?.failedGuests ?? 0}</p>

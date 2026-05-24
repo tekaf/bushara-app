@@ -23,7 +23,25 @@ export interface Invite {
   workflowStatus?: string
   reviewStatus?: string
   inviteLockedAfterPayment?: boolean
+  orderCode?: string
   orderNumber?: string
+  dispatchMode?: 'api' | 'manual'
+  dispatchStatus?:
+    | 'pending'
+    | 'preparing'
+    | 'ready'
+    | 'sending'
+    | 'completed'
+    | 'failed'
+    | 'orphan_blocked'
+    | 'relation_invalid'
+    | 'orphan_detected'
+  apiHealthStatus?: 'passed' | 'failed' | ''
+  apiFailureReason?: string
+  apiCheckedAt?: Date | null
+  apiCheckedBy?: string
+  manualPreparedAt?: Date | null
+  manualPreparedBy?: string
   // Phase 2 schema (BE-01) - additive fields only
   scheduledSendAt?: Date | null
   timezone?: string
@@ -45,9 +63,26 @@ export interface Guest {
   allowedCount: number
   qrToken: string
   serialNumber: number
+  orderCode?: string
   status: 'pending' | 'sent' | 'accepted' | 'declined' | 'invited' | 'checked_in'
   // Phase 2 schema (BE-01) - additive fields only
-  sendStatus?: 'pending' | 'scheduled' | 'send_pending' | 'sent' | 'failed'
+  sendStatus?:
+    | 'pending'
+    | 'scheduled'
+    | 'send_pending'
+    | 'sent'
+    | 'failed'
+    | 'pending_manual'
+    | 'ready_manual'
+    | 'manual_opened'
+    | 'manually_sent'
+    | 'manual_retry_needed'
+    | 'blocked_missing_rsvp_token'
+    | 'blocked_missing_message_context'
+    | 'blocked_invalid_phone'
+    | 'blocked_duplicate'
+    | 'blocked_orphan'
+    | 'relation_failed'
   sendAttemptCount?: number
   lastSendAt?: Date | null
   lastSendError?: string
@@ -101,6 +136,7 @@ export interface Template {
 export interface PreviousExample {
   id: string
   title: string
+  sortOrder?: number
   status: 'draft' | 'published'
   sourceType: 'pdf' | 'image'
   assets: {
@@ -145,6 +181,7 @@ export interface SendJob {
     | 'completed'
     | 'partially_completed'
     | 'failed'
+    | 'orphan_blocked'
     | 'cancelled'
   attempt: number
   lockOwner?: string | null

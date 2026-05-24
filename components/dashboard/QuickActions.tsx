@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Heart, LayoutTemplate, Package, Ticket, Users, Wand2 } from 'lucide-react'
 
 const actions = [
-  { title: 'صمم دعوة جديدة', desc: 'ابدأ تصميم الدعوة خلال دقائق', href: '/occasions', icon: Wand2 },
+  { title: 'صمم دعوة جديدة', desc: 'ابدأ تصميم الدعوة خلال دقائق', href: '/packages', icon: Wand2 },
   { title: 'اختر باقة', desc: 'الباقات حسب عدد الضيوف', href: '/packages', icon: Package },
   { title: 'باقاتي', desc: 'الدعوات المدفوعة والباقات المفعلة لديك', href: '/dashboard/invites', icon: Ticket },
   { title: 'المدعوين', desc: 'إدارة الضيوف والردود', href: '/dashboard/guests', icon: Users },

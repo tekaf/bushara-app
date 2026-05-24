@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminBucket, getAdminFirestore } from '@/lib/firebase/admin'
-import { convertPdfUrlToPng, createThumbnailFromPngBuffer } from '@/lib/pdf/toPng'
+import { convertPdfBufferToPng, createThumbnailFromPngBuffer } from '@/lib/pdf/toPng'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
+
+function isBillingDisabledError(err: any) {
+  const message = String(err?.message || '')
+  return (
+    message.includes('billing account') ||
+    message.includes('accountDisabled') ||
+    message.includes('state closed')
+  )
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -92,12 +101,8 @@ export async function POST(request: NextRequest) {
         console.warn('⚠️ [API][UPLOAD_TEMPLATE] Could not make PDF public:', publicError.message)
       }
 
-      const [signedPdfUrl] = await pdfRef.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 15 * 60 * 1000,
-      })
-
-      const conversion = await convertPdfUrlToPng(signedPdfUrl)
+      // Convert directly from uploaded buffer to avoid GCS read dependency during conversion.
+      const conversion = await convertPdfBufferToPng(pdfBuffer)
       console.log(
         `✅ [API][UPLOAD_TEMPLATE] Converted PDF -> PNG ${conversion.dimensions.width}x${conversion.dimensions.height} in ${conversion.elapsedMs}ms`
       )
@@ -177,6 +182,17 @@ export async function POST(request: NextRequest) {
         code: adminError.code,
         stack: adminError.stack,
       })
+      if (isBillingDisabledError(adminError)) {
+        return NextResponse.json(
+          {
+            error:
+              'Template upload failed because Google Cloud Billing is disabled for this project. Re-enable billing, then retry.',
+            code: adminError.code || 'billing_disabled',
+            hint: 'Enable billing on the owning Google Cloud project to restore PDF upload/conversion and Storage access.',
+          },
+          { status: 503 }
+        )
+      }
       return NextResponse.json(
         { 
           error: `PDF upload/convert failed: ${adminError.message}`,

@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase/config'
 import { useAuth } from '@/lib/auth/context'
 import { isAdminEmailClient } from '@/lib/auth/admin-access'
 import type { Template } from '@/lib/firebase/types'
+import type { TemplateType } from '@/lib/template-presets/types'
 import { ArrowLeft, Edit, Eye, Image as ImageIcon, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -17,6 +18,7 @@ export default function TemplatesListPage() {
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [updatingTypeId, setUpdatingTypeId] = useState<string | null>(null)
 
   useEffect(() => {
     if (authLoading) return
@@ -73,6 +75,40 @@ export default function TemplatesListPage() {
       alert(`خطأ في الحذف: ${error?.message || 'حدث خطأ غير متوقع'}`)
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const handleChangeTemplateType = async (template: Template, nextType: TemplateType) => {
+    if (!user || !template?.id) return
+    const currentType = String(template.type || '').toUpperCase()
+    if (currentType === nextType) return
+
+    const confirmed = window.confirm(`تحويل نوع النموذج من ${currentType} إلى ${nextType}؟`)
+    if (!confirmed) return
+
+    try {
+      setUpdatingTypeId(template.id)
+      const token = await user.getIdToken()
+      const response = await fetch(`/api/admin/templates/${template.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ type: nextType }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.error || 'فشل تحديث نوع النموذج')
+      }
+
+      setTemplates((prev) =>
+        prev.map((item) => (item.id === template.id ? { ...item, type: nextType, updatedAt: new Date() } : item))
+      )
+    } catch (error: any) {
+      alert(`خطأ في تحديث النوع: ${error?.message || 'حدث خطأ غير متوقع'}`)
+    } finally {
+      setUpdatingTypeId(null)
     }
   }
 
@@ -191,6 +227,24 @@ export default function TemplatesListPage() {
                   >
                     {template.status === 'published' ? 'منشور' : 'مسودة'}
                   </span>
+                </div>
+                <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <label className="mb-2 block text-xs font-semibold text-gray-600">تحويل نوع النموذج</label>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={template.type}
+                      disabled={updatingTypeId === template.id}
+                      onChange={(e) => handleChangeTemplateType(template, e.target.value as TemplateType)}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                    </select>
+                    {updatingTypeId === template.id ? (
+                      <span className="text-xs text-muted">جاري التحديث...</span>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Link

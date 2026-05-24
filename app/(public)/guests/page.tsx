@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { addDoc, collection, doc, getDoc, setDoc } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore'
 import Navbar from '@/components/ui/Navbar'
 import Footer from '@/components/ui/Footer'
 import { useAuth } from '@/lib/auth/context'
@@ -42,6 +42,26 @@ type TabKey = 'quick_add' | 'list' | 'review'
 
 const ACTIVE_INVITE_ID_PREFIX = 'bushara_active_invite_id'
 const QUICK_ADD_DRAFT_PREFIX = 'bushara_guest_quickadd_draft'
+const LAST_REAL_INVITE_ID_KEY = 'bushara_last_real_invite_id'
+
+function isDraftInviteId(value: string) {
+  return String(value || '').trim().startsWith('draft_')
+}
+
+function isPaidInvite(invite: any) {
+  return (
+    invite?.paymentStatus === 'paid' ||
+    invite?.status === 'paid' ||
+    invite?.inviteLockedAfterPayment === true
+  )
+}
+
+function isDraftOnlyInvite(inviteId: string, invite: any) {
+  if (!isDraftInviteId(inviteId)) return false
+  // Some legacy invites keep draft_* id but are already paid/approved and should remain usable.
+  if (isPaidInvite(invite) || canProceedAfterWorkshop(String(invite?.workflowStatus || invite?.status || ''))) return false
+  return true
+}
 
 function GuestsPageContent() {
   const router = useRouter()
@@ -56,6 +76,7 @@ function GuestsPageContent() {
   const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null)
   const [tab, setTab] = useState<TabKey>('quick_add')
   const [loadingGuests, setLoadingGuests] = useState(false)
+  const [sendingNow, setSendingNow] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'sent' | 'accepted' | 'declined'>('all')
   const [editingId, setEditingId] = useState('')
@@ -69,6 +90,10 @@ function GuestsPageContent() {
   const [analysisCounters, setAnalysisCounters] = useState({ found: 0, cleaned: 0, duplicates: 0, invalid: 0 })
   const [showSparkle, setShowSparkle] = useState(false)
   const [canAccess, setCanAccess] = useState(false)
+  const [sendNowFeedback, setSendNowFeedback] = useState<{ kind: 'idle' | 'success' | 'error'; text: string }>({
+    kind: 'idle',
+    text: '',
+  })
 
   const packageLimit = useMemo(() => Number(draft?.packageGuests || 0), [draft?.packageGuests])
   const usedCount = quota.used || invitees.length
@@ -212,6 +237,19 @@ function GuestsPageContent() {
     return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
   }
 
+  async function initializeOrderFoundation(inviteId: string) {
+    if (!inviteId) return
+    const headers = await withAuthHeaders()
+    const response = await fetch(`/api/user/invitations/${encodeURIComponent(inviteId)}/initialize-order`, {
+      method: 'POST',
+      headers,
+    })
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data?.error || 'تعذر تهيئة كود الطلب')
+    }
+  }
+
   async function loadGuests(targetInviteId: string) {
     if (!targetInviteId) return
     setLoadingGuests(true)
@@ -269,12 +307,59 @@ function GuestsPageContent() {
     if (inviteIdFromQuery) {
       const loadFromInvite = async () => {
         try {
-          const inviteSnap = await getDoc(doc(db, 'invites', inviteIdFromQuery))
+          const payment = paymentRaw ? (JSON.parse(paymentRaw) as { inviteId?: string; templateId?: string }) : {}
+          const paymentInviteId = String(payment?.inviteId || '').trim()
+          const currentInviteId = String(window.sessionStorage.getItem('bushara_current_invite_id') || '').trim()
+          const lastRealInviteId = String(window.localStorage.getItem(LAST_REAL_INVITE_ID_KEY) || '').trim()
+          const fallbackRealId = [paymentInviteId, currentInviteId, lastRealInviteId].find(
+            (id) => id && !isDraftInviteId(id)
+          )
+          const normalizedQueryInviteId =
+            isDraftInviteId(inviteIdFromQuery) && fallbackRealId ? fallbackRealId : inviteIdFromQuery
+
+          const inviteSnap = await getDoc(doc(db, 'invites', normalizedQueryInviteId))
           if (!inviteSnap.exists()) {
             router.replace('/dashboard/guests')
             return
           }
-          const invite = inviteSnap.data() as any
+          let invite = inviteSnap.data() as any
+          let effectiveInviteId = normalizedQueryInviteId
+          if (isDraftOnlyInvite(normalizedQueryInviteId, invite)) {
+            const draftDesignId = String(invite?.designId || '').trim()
+            const ownerId = String(user?.uid || '').trim()
+            if (ownerId && draftDesignId) {
+              const candidatesSnap = await getDocs(
+                query(collection(db, 'invites'), where('ownerId', '==', ownerId), where('designId', '==', draftDesignId))
+              )
+              const candidates = candidatesSnap.docs
+                .map((d) => ({ id: d.id, ...(d.data() as any) }))
+                .filter((row) => !isDraftInviteId(String(row?.id || '')))
+                .filter((row) => isPaidInvite(row) && canProceedAfterWorkshop(String(row?.workflowStatus || row?.status || '')))
+                .sort((a, b) => {
+                  const aDate = a?.updatedAt?.toDate?.() || a?.createdAt?.toDate?.() || new Date(0)
+                  const bDate = b?.updatedAt?.toDate?.() || b?.createdAt?.toDate?.() || new Date(0)
+                  return bDate.getTime() - aDate.getTime()
+                })
+              if (candidates[0]?.id) {
+                effectiveInviteId = String(candidates[0].id)
+                invite = candidates[0]
+              }
+            }
+          }
+          if (isDraftOnlyInvite(effectiveInviteId, invite)) {
+            setToast({
+              show: true,
+              kind: 'error',
+              text: 'هذه نسخة draft. بعد الاعتماد ستظهر إدارة المدعوين للدعوة الفعلية.',
+            })
+            router.replace('/dashboard/guests')
+            return
+          }
+          window.sessionStorage.setItem('bushara_current_invite_id', effectiveInviteId)
+          window.localStorage.setItem(LAST_REAL_INVITE_ID_KEY, effectiveInviteId)
+          if (effectiveInviteId !== inviteIdFromQuery) {
+            router.replace(`/guests?invId=${encodeURIComponent(effectiveInviteId)}`)
+          }
           setDraft({
             templateId: String(invite?.designId || 'manual'),
             templateName: String(invite?.title || ''),
@@ -329,12 +414,25 @@ function GuestsPageContent() {
 
     const ensureInvite = async () => {
       const inviteIdFromQuery = searchParams.get('invId') || ''
+      const paymentRaw = window.sessionStorage.getItem('bushara_payment_status') || ''
+      let payment: { inviteId?: string } = {}
+      try {
+        payment = paymentRaw ? (JSON.parse(paymentRaw) as { inviteId?: string }) : {}
+      } catch {
+        payment = {}
+      }
+      const paymentInviteId = String(payment?.inviteId || '').trim()
       const currentInviteId = window.sessionStorage.getItem('bushara_current_invite_id') || ''
-      const savedInviteId = inviteIdFromQuery || window.sessionStorage.getItem(inviteStorageKey) || currentInviteId
+      const lastRealInviteId = window.localStorage.getItem(LAST_REAL_INVITE_ID_KEY) || ''
+      const storageInviteId = window.sessionStorage.getItem(inviteStorageKey) || ''
+      const savedInviteId =
+        [inviteIdFromQuery, paymentInviteId, storageInviteId, currentInviteId, lastRealInviteId].find((id) => id) || ''
       if (savedInviteId) {
+        await initializeOrderFoundation(savedInviteId)
         const approved = await ensureInviteApproved(savedInviteId)
         if (!approved) return
         window.sessionStorage.setItem(inviteStorageKey, savedInviteId)
+        window.localStorage.setItem(LAST_REAL_INVITE_ID_KEY, savedInviteId)
         setInviteId(savedInviteId)
         await loadGuests(savedInviteId)
         return
@@ -360,6 +458,8 @@ function GuestsPageContent() {
           guestLimit: Number(draft.packageGuests || 0),
           status: 'paid',
           paymentStatus: 'paid',
+          dispatchMode: 'manual',
+          dispatchStatus: 'pending',
           inviteLockedAfterPayment: true,
           paidAt: new Date(),
           createdAt: new Date(),
@@ -373,6 +473,7 @@ function GuestsPageContent() {
           },
           { merge: true }
         )
+        await initializeOrderFoundation(created.id)
         const approved = await ensureInviteApproved(created.id)
         if (!approved) return
         setInviteId(created.id)
@@ -542,8 +643,105 @@ function GuestsPageContent() {
     }
   }
 
-  const goToWhatsAppSend = () => {
-    alert('سيتم ربط الإرسال الفعلي عبر واتساب في الخطوة القادمة.')
+  const goToWhatsAppSend = async () => {
+    console.info('[UI][SEND_NOW] button-clicked', {
+      inviteId,
+      sendingNow,
+      sendEligibleCount,
+      userUid: user?.uid || null,
+    })
+    if (sendingNow) return
+    if (!inviteId) {
+      const message = 'تعذر بدء الإرسال: معرف الدعوة غير متوفر حالياً.'
+      console.warn('[UI][SEND_NOW] blocked-no-invite-id')
+      setSendNowFeedback({ kind: 'error', text: message })
+      setToast({ show: true, text: message, kind: 'error' })
+      return
+    }
+    if (sendEligibleCount === 0) {
+      const message = 'لا يوجد مدعوون جاهزون للإرسال حالياً.'
+      console.warn('[UI][SEND_NOW] blocked-no-eligible-guests', { inviteId })
+      setSendNowFeedback({ kind: 'error', text: message })
+      setToast({ show: true, text: message, kind: 'error' })
+      return
+    }
+    try {
+      setSendingNow(true)
+      setSendNowFeedback({ kind: 'idle', text: '' })
+      const headers = await withAuthHeaders()
+      console.info('[UI][SEND_NOW] before-fetch', {
+        url: `/api/user/invitations/${inviteId}/send-now`,
+        method: 'POST',
+        inviteId,
+      })
+      const response = await fetch(`/api/user/invitations/${inviteId}/send-now`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      })
+      const data = await response.json().catch(() => ({}))
+      console.info('[UI][SEND_NOW] after-response', {
+        inviteId,
+        ok: response.ok,
+        status: response.status,
+        stage: data?.stage || null,
+        error: data?.error || null,
+      })
+      if (!response.ok) {
+        const missingEnv = Array.isArray(data?.missingEnv) ? data.missingEnv : []
+        const readiness = data?.readiness || {}
+        if (missingEnv.length > 0) {
+          throw new Error(`إعدادات واتساب ناقصة: ${missingEnv.join(', ')}`)
+        }
+        if (readiness && typeof readiness === 'object') {
+          const issues: string[] = []
+          if (readiness.missingFinalImage) issues.push('صورة الدعوة النهائية غير موجودة')
+          if (readiness.exceedsPackage) issues.push('عدد المدعوين تجاوز حد الباقة')
+          if (Number(readiness.invalidPhoneCount || 0) > 0) issues.push(`يوجد ${readiness.invalidPhoneCount} أرقام غير صالحة`)
+          if (Number(readiness.missingRsvpTokenCount || 0) > 0) issues.push(`يوجد ${readiness.missingRsvpTokenCount} مدعوين بدون رمز RSVP`)
+          if (issues.length) throw new Error(`الدعوة غير جاهزة للإرسال: ${issues.join(' - ')}`)
+        }
+        throw new Error(String(data?.error || 'فشل بدء الإرسال عبر واتساب'))
+      }
+
+      if (String(data?.message || '').trim()) {
+        const successText = String(data.message)
+        setSendNowFeedback({ kind: 'success', text: successText })
+        setToast({
+          show: true,
+          kind: 'success',
+          text: successText,
+        })
+        await loadGuests(inviteId)
+        return
+      }
+
+      const resultStatus = String(data?.result?.status || '').trim()
+      const sentCount = Number(data?.result?.sent || data?.result?.resultSummary?.sent || 0)
+      const failedCount = Number(data?.result?.failed || data?.result?.resultSummary?.failed || 0)
+      const finalText =
+        failedCount > 0
+          ? `تمت محاولة الإرسال. المرسل: ${sentCount}، الفاشل: ${failedCount} (الحالة: ${resultStatus || 'partial'}).`
+          : `تم بدء/إكمال الإرسال بنجاح. المرسل: ${sentCount}.`
+      setSendNowFeedback({ kind: failedCount > 0 ? 'error' : 'success', text: finalText })
+      setToast({
+        show: true,
+        kind: failedCount > 0 ? 'error' : 'success',
+        text: finalText,
+      })
+      await loadGuests(inviteId)
+    } catch (error: any) {
+      const message = error?.message || 'فشل الإرسال عبر واتساب'
+      console.error('[UI][SEND_NOW] failed', { inviteId, message })
+      setSendNowFeedback({ kind: 'error', text: message })
+      setToast({
+        show: true,
+        text: message,
+        kind: 'error',
+      })
+    } finally {
+      setSendingNow(false)
+    }
   }
 
   return (
@@ -910,10 +1108,16 @@ function GuestsPageContent() {
                     <button
                       type="button"
                       onClick={goToWhatsAppSend}
-                      className="rounded-lg bg-primary px-5 py-3 font-semibold text-white hover:bg-accent transition-colors"
+                      disabled={sendingNow || sendEligibleCount === 0}
+                      className="rounded-lg bg-primary px-5 py-3 font-semibold text-white hover:bg-accent transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      تأكيد وإرسال عبر واتساب
+                      {sendingNow ? 'جارٍ الإرسال عبر واتساب...' : 'تأكيد وإرسال عبر واتساب'}
                     </button>
+                    {!sendingNow && sendNowFeedback.kind !== 'idle' && (
+                      <p className={`mt-3 text-sm ${sendNowFeedback.kind === 'success' ? 'text-green-700' : 'text-red-600'}`}>
+                        {sendNowFeedback.text}
+                      </p>
+                    )}
                   </motion.section>
                 )}
               </AnimatePresence>

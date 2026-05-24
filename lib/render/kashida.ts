@@ -81,6 +81,13 @@ function applyAbdKashida(name: string): string {
  * - special case: names starting with "عبد" get "عبـــــد ..." formatting.
  */
 export function applyConsistentKashidaPair(groomName: string, brideName: string) {
+  const groomRaw = String(groomName || '').trim()
+  const brideRaw = String(brideName || '').trim()
+  // Respect manual Kashida typed by editor/admin and avoid overriding it.
+  if (groomRaw.includes(KASHIDA_CHAR) || brideRaw.includes(KASHIDA_CHAR)) {
+    return { groom: groomRaw, bride: brideRaw, applied: true }
+  }
+
   const groom = normalizeName(groomName)
   const bride = normalizeName(brideName)
 

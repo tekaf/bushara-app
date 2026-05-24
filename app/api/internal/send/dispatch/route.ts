@@ -3,6 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore'
 import { getAdminFirestore } from '@/lib/firebase/admin'
 import { acquireSendJobLock } from '@/lib/sending/processing-guard'
 import { recoverStalledSendJobs } from '@/lib/sending/stalled-recovery'
+import { runDispatchProtection } from '@/lib/dispatch/kernel'
 
 export const runtime = 'nodejs'
 
@@ -74,9 +75,21 @@ export async function POST(request: NextRequest) {
 
     const picked: string[] = []
     const skippedLocked: string[] = []
+    const blockedOrphan: string[] = []
 
     for (const doc of dueDocs) {
       const jobId = doc.id
+      const protection = await runDispatchProtection({
+        adminDb,
+        source: 'dispatch_pick',
+        jobId,
+        checkGuestRelations: true,
+        blockOnFailure: true,
+      })
+      if (!protection.valid) {
+        blockedOrphan.push(jobId)
+        continue
+      }
       const lock = await acquireSendJobLock(adminDb, {
         jobId,
         lockOwner: dispatchRunId,
@@ -111,8 +124,10 @@ export async function POST(request: NextRequest) {
       dueCount: dueDocs.length,
       pickedCount: picked.length,
       skippedLockedCount: skippedLocked.length,
+      blockedOrphanCount: blockedOrphan.length,
       pickedJobIds: picked,
       skippedLockedJobIds: skippedLocked,
+      blockedOrphanJobIds: blockedOrphan,
       note: 'WK-01 only: jobs are picked and locked; no guest processing is executed here.',
     })
   } catch (error: any) {

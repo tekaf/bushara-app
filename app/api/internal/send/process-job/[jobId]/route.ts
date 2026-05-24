@@ -26,8 +26,16 @@ export async function POST(
     if (!adminDb) return NextResponse.json({ error: 'Admin SDK not configured' }, { status: 500 })
     const jobId = String(params?.jobId || '').trim()
     if (!jobId) return NextResponse.json({ error: 'Missing jobId' }, { status: 400 })
+    console.info('[API][PROCESS_JOB] request-received', { jobId })
 
     const body = await request.json().catch(() => ({}))
+    console.info('[API][PROCESS_JOB] before-engine', {
+      jobId,
+      batchSize: Number(body?.batchSize || process.env.SEND_BATCH_SIZE || 50),
+      maxConcurrency: Number(body?.maxConcurrency || process.env.SEND_MAX_CONCURRENCY || 5),
+      messageDelayMs: Number(body?.messageDelayMs || process.env.SEND_MESSAGE_DELAY_MS || 250),
+      batchDelayMs: Number(body?.batchDelayMs || process.env.SEND_BATCH_DELAY_MS || 2000),
+    })
     const summary = await processSendJob(adminDb, {
       jobId,
       lockOwner: String(body?.lockOwner || '').trim() || undefined,
@@ -36,6 +44,18 @@ export async function POST(
       messageDelayMs: Number(body?.messageDelayMs || process.env.SEND_MESSAGE_DELAY_MS || 250),
       batchDelayMs: Number(body?.batchDelayMs || process.env.SEND_BATCH_DELAY_MS || 2000),
     })
+    console.info('[API][PROCESS_JOB] after-engine', { jobId, summary })
+    if (summary.status === 'orphan_blocked') {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Send job blocked by orphan protection',
+          relation: 'orphan_blocked',
+          ...summary,
+        },
+        { status: 409 }
+      )
+    }
 
     return NextResponse.json({
       ok: true,

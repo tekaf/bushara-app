@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuth } from 'firebase-admin/auth'
 import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
+import { validateInvitationRelation } from '@/lib/orders/orphan-protection'
 
 export const runtime = 'nodejs'
 
@@ -17,6 +18,12 @@ async function getSession(request: NextRequest) {
 }
 
 async function assertOwner(adminDb: any, invId: string, uid: string) {
+  const relation = await validateInvitationRelation(adminDb, invId, {
+    operation: 'collaborators_owner_check',
+    blockOnFailure: true,
+    checkGuestRelations: false,
+  })
+  if (!relation.ok) throw new Error(relation.code === 'invitation_missing' ? 'Invite not found' : relation.reason)
   const inviteRef = adminDb.collection('invites').doc(invId)
   const inviteSnap = await inviteRef.get()
   if (!inviteSnap.exists) throw new Error('Invite not found')

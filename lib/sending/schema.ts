@@ -6,7 +6,23 @@ export type InviteSendWorkflowStatus =
   | 'partially_sent'
   | 'sent'
 
-export type GuestSendStatus = 'pending' | 'scheduled' | 'send_pending' | 'sent' | 'failed'
+export type GuestSendStatus =
+  | 'pending'
+  | 'scheduled'
+  | 'send_pending'
+  | 'sent'
+  | 'failed'
+  | 'pending_manual'
+  | 'ready_manual'
+  | 'manual_opened'
+  | 'manually_sent'
+  | 'manual_retry_needed'
+  | 'blocked_missing_rsvp_token'
+  | 'blocked_missing_message_context'
+  | 'blocked_invalid_phone'
+  | 'blocked_duplicate'
+  | 'blocked_orphan'
+  | 'relation_failed'
 
 export type SendJobStatus =
   | 'scheduled'
@@ -15,6 +31,7 @@ export type SendJobStatus =
   | 'completed'
   | 'partially_completed'
   | 'failed'
+  | 'orphan_blocked'
   | 'cancelled'
 
 export type SendLogStatus = 'accepted' | 'failed' | 'skipped'
@@ -25,6 +42,19 @@ export type InviteSendStatusSummary = {
   sent: number
   failed: number
 }
+
+export type DispatchMode = 'api' | 'manual'
+export type ApiHealthStatus = 'passed' | 'failed' | ''
+export type DispatchStatus =
+  | 'pending'
+  | 'preparing'
+  | 'ready'
+  | 'sending'
+  | 'completed'
+  | 'failed'
+  | 'orphan_blocked'
+  | 'relation_invalid'
+  | 'orphan_detected'
 
 export const DEFAULT_INVITE_SEND_STATUS_SUMMARY: InviteSendStatusSummary = {
   total: 0,

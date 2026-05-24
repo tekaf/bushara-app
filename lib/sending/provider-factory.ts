@@ -16,6 +16,7 @@ export function createWhatsAppProviderService(
   const provider = String(options.provider || process.env.WHATSAPP_PROVIDER || 'meta')
     .trim()
     .toLowerCase()
+  const isProduction = String(process.env.NODE_ENV || '').toLowerCase() === 'production'
 
   if (provider === 'meta' || provider === 'meta-whatsapp-cloud') {
     return new MetaWhatsAppProviderService({
@@ -29,6 +30,9 @@ export function createWhatsAppProviderService(
   }
 
   if (provider === 'mock' || provider === 'test-mock') {
+    if (isProduction) {
+      throw new Error('Mock WhatsApp provider is blocked in production')
+    }
     return new MockWhatsAppProviderService()
   }
 

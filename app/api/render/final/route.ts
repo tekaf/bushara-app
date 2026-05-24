@@ -167,6 +167,7 @@ export async function POST(request: NextRequest) {
       assetBaseUrl: request.nextUrl.origin,
       layoutB: renderOptions?.layoutB || template.layoutB, // Allow invite-level override, fallback to template.
       blockStyleOverrides: renderOptions?.blockStyleOverrides || {},
+      blockPositionOverrides: renderOptions?.blockPositionOverrides || {},
       ruleIcons,
     })
     console.log('✅ [RENDER/FINAL] HTML generated', debugMode ? '(DEBUG MODE)' : '', showGrid ? '(GRID MODE)' : '')

@@ -3,6 +3,7 @@ import { getAuth } from 'firebase-admin/auth'
 import { FieldValue } from 'firebase-admin/firestore'
 import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
 import { getWorkflowTransitionError, INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
+import { releaseDispatchKernelLock, runDispatchProtection } from '@/lib/dispatch/kernel'
 
 export const runtime = 'nodejs'
 
@@ -34,9 +35,27 @@ export async function POST(request: NextRequest, { params }: { params: { invId: 
     const { uid, adminDb } = await getSession(request)
     const inviteId = String(params?.invId || '').trim()
     if (!inviteId) return NextResponse.json({ error: 'Missing invite id' }, { status: 400 })
+    const lockOwner = `cancel-schedule:${uid}`
+    const protection = await runDispatchProtection({
+      adminDb,
+      source: 'cancel_schedule',
+      inviteId,
+      checkGuestRelations: true,
+      blockOnFailure: true,
+      acquireLock: true,
+      lockOwner,
+    })
+    if (!protection.valid) {
+      return NextResponse.json(
+        { error: protection.reason, decision: protection.decision, inviteId, orderCode: protection.orderCode || '' },
+        { status: protection.decision === 'orphan_blocked' ? 404 : 409 }
+      )
+    }
 
-    const inviteRef = adminDb.collection('invites').doc(inviteId)
-    const result = await adminDb.runTransaction(async (tx) => {
+    const lockKey = String(protection.lock?.key || '').trim()
+    try {
+      const inviteRef = adminDb.collection('invites').doc(inviteId)
+      const result = await adminDb.runTransaction(async (tx) => {
       const inviteSnap = await tx.get(inviteRef)
       if (!inviteSnap.exists) return { ok: false as const, status: 404, error: 'Invite not found' }
 
@@ -144,19 +163,24 @@ export async function POST(request: NextRequest, { params }: { params: { invId: 
         revertedGuestsCount: scheduledGuests.length,
         workflowStatus: INVITE_WORKFLOW_STATUS.READY_FOR_SCHEDULING,
       }
-    })
+      })
 
-    if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: result.status })
+      }
+
+      return NextResponse.json({
+        ok: true,
+        inviteId,
+        workflowStatus: result.workflowStatus,
+        cancelledJobsCount: result.cancelledJobsCount,
+        revertedGuestsCount: result.revertedGuestsCount,
+      })
+    } finally {
+      if (lockKey) {
+        await releaseDispatchKernelLock(adminDb, { lockKey, lockOwner }).catch(() => null)
+      }
     }
-
-    return NextResponse.json({
-      ok: true,
-      inviteId,
-      workflowStatus: result.workflowStatus,
-      cancelledJobsCount: result.cancelledJobsCount,
-      revertedGuestsCount: result.revertedGuestsCount,
-    })
   } catch (error: any) {
     const status = error?.message === 'Unauthorized' ? 401 : 500
     return NextResponse.json({ error: error?.message || 'Failed to cancel schedule' }, { status })

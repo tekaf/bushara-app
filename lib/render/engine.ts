@@ -49,6 +49,14 @@ export interface RenderOptions {
       color?: string
       fontFamily?: string
       fontWeight?: number
+      fontSize?: number
+    }
+  >
+  blockPositionOverrides?: Record<
+    string,
+    {
+      xPx?: number
+      yPx?: number
     }
   >
   ruleIcons?: {
@@ -334,11 +342,30 @@ export async function generateHTML(
         const isVisible = isTruthyValue(fieldMap[visibilityField])
         if (!isVisible && !debugMode) return ''
 
-        const xPx = Math.round(block.boxPct.x * width)
-        const yPx = Math.round(block.boxPct.y * height)
-        const wPx = Math.round(block.boxPct.w * width)
-        const hPx = Math.round(block.boxPct.h * height)
+        let xPx = Math.round(block.boxPct.x * width)
+        let yPx = Math.round(block.boxPct.y * height)
+        let wPx = Math.round(block.boxPct.w * width)
+        let hPx = Math.round(block.boxPct.h * height)
         const debugBorder = debugMode ? 'border: 1px dashed rgba(255,0,0,0.5);' : ''
+        const posOverride = options.blockPositionOverrides?.[block.id] || {}
+        const styleOverride = options.blockStyleOverrides?.[block.id] || {}
+        if (Number.isFinite(Number(posOverride?.xPx))) {
+          xPx = Math.max(0, Math.round(Number(posOverride.xPx)))
+        }
+        if (Number.isFinite(Number(posOverride?.yPx))) {
+          yPx = Math.max(0, Math.round(Number(posOverride.yPx)))
+        }
+        if (Number.isFinite(Number(styleOverride?.fontSize)) && Number(styleOverride.fontSize) > 0) {
+          const targetSize = Math.max(8, Math.round(Number(styleOverride.fontSize)))
+          const ratio = wPx > 0 && hPx > 0 ? wPx / hPx : 1
+          if (ratio >= 1) {
+            wPx = targetSize
+            hPx = Math.max(8, Math.round(targetSize / ratio))
+          } else {
+            hPx = targetSize
+            wPx = Math.max(8, Math.round(targetSize * ratio))
+          }
+        }
         const iconOverride =
           block.id === 'icon_no_kids' || block.visibleWhenField === 'noKids'
             ? options.ruleIcons?.noKidsUrl || ''
@@ -350,6 +377,8 @@ export async function generateHTML(
           ? `${(options.assetBaseUrl || '').replace(/\/$/, '')}${rawImageSrc}`
           : rawImageSrc
         if (!imageSrc && !debugMode) return ''
+        const iconColor = String(styleOverride?.color || block.color || '#000000').trim()
+        const supportsTint = block.id === 'icon_no_kids' || block.id === 'icon_no_photography'
 
         return `
           <div
@@ -366,12 +395,27 @@ export async function generateHTML(
               justify-content: center;
               z-index: 1;
               overflow: hidden;
+              ${supportsTint ? `color: ${iconColor};` : ''}
               ${debugBorder}
             "
           >
             ${
               imageSrc
-                ? `<img src="${imageSrc}" alt="${block.id}" style="width: 100%; height: 100%; object-fit: contain;" />`
+                ? supportsTint
+                  ? `<div style="
+                        width: 100%;
+                        height: 100%;
+                        background-color: currentColor;
+                        -webkit-mask-image: url('${imageSrc}');
+                        -webkit-mask-repeat: no-repeat;
+                        -webkit-mask-position: center;
+                        -webkit-mask-size: contain;
+                        mask-image: url('${imageSrc}');
+                        mask-repeat: no-repeat;
+                        mask-position: center;
+                        mask-size: contain;
+                      "></div>`
+                  : `<img src="${imageSrc}" alt="${block.id}" style="width: 100%; height: 100%; object-fit: contain;" />`
                 : ''
             }
           </div>
@@ -398,6 +442,9 @@ export async function generateHTML(
       let wPx: number
       let hPx: number
 
+      const posOverride = options.blockPositionOverrides?.[block.id] || {}
+      const hasPosOverride = Number.isFinite(Number(posOverride?.xPx)) || Number.isFinite(Number(posOverride?.yPx))
+
       if (options.layoutB && (block.id === 'groom_name' || block.id === 'bride_name' || block.id === 'date')) {
         // Use saved layout positions
         const savedLayout = block.id === 'groom_name' ? options.layoutB.groom :
@@ -419,9 +466,19 @@ export async function generateHTML(
         hPx = Math.round(block.boxPct.h * height)
       }
 
+      if (hasPosOverride) {
+        if (Number.isFinite(Number(posOverride?.xPx))) {
+          xPx = Math.max(0, Math.round(Number(posOverride.xPx)))
+        }
+        if (Number.isFinite(Number(posOverride?.yPx))) {
+          yPx = Math.max(0, Math.round(Number(posOverride.yPx)))
+        }
+      }
+
       // Flexible width for short Arabic name fields: expand box before shrinking text.
+      // If workshop already saved explicit block position, do not auto-reposition.
       const isNameField = block.id === 'groom_name' || block.id === 'bride_name'
-      if (text && isNameField) {
+      if (text && isNameField && !hasPosOverride) {
         const estimatedNeededWidth = Math.ceil(estimateTextWidthPx(text, fontSize, true) + 28)
         if (estimatedNeededWidth > wPx) {
           const centerX = xPx + wPx / 2
@@ -440,7 +497,7 @@ export async function generateHTML(
         block.id === 'groom_name' ||
         block.id === 'bride_name'
       if (text && isSingleLineTarget) {
-        if (block.autoExpandWidthPct && block.autoExpandWidthPct > block.boxPct.w) {
+        if (!hasPosOverride && block.autoExpandWidthPct && block.autoExpandWidthPct > block.boxPct.w) {
           const estimatedNeededWidth = Math.ceil(
             estimateTextWidthPx(text, fontSize, block.font.familyKey === 'arabic') + 24
           )
@@ -463,6 +520,9 @@ export async function generateHTML(
       const fontWeight = Number.isFinite(styleOverride.fontWeight as number)
         ? Number(styleOverride.fontWeight)
         : block.font.weight
+      if (Number.isFinite(Number(styleOverride.fontSize)) && Number(styleOverride.fontSize) > 0) {
+        fontSize = Math.max(8, Number(styleOverride.fontSize))
+      }
       const color = styleOverride.color || block.color
       const textAlign = block.align
       const direction = block.font.familyKey === 'arabic' ? 'rtl' : 'ltr'

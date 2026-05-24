@@ -8,8 +8,22 @@ import {
   INVITE_WORKFLOW_STATUS,
   getWorkflowTransitionError,
 } from '@/lib/invitations/workflow'
+import { sanitizeForFirestore, sanitizeRenderFieldsByTemplateType, type SnapshotTemplateType } from '@/lib/workshop/snapshot'
+import type { FinalInvitationSnapshot } from '@/lib/workshop/snapshot'
+import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
 
 export const runtime = 'nodejs'
+
+const APPROVAL_ALLOWED_STATUSES = new Set<string>([
+  INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW,
+  INVITE_WORKFLOW_STATUS.NEEDS_CUSTOMER_UPDATE,
+  INVITE_WORKFLOW_STATUS.APPROVED,
+  INVITE_WORKFLOW_STATUS.READY_FOR_SCHEDULING,
+  INVITE_WORKFLOW_STATUS.SCHEDULED,
+  INVITE_WORKFLOW_STATUS.SENDING,
+  INVITE_WORKFLOW_STATUS.PARTIALLY_SENT,
+  INVITE_WORKFLOW_STATUS.SENT,
+])
 
 async function verifyAdmin(request: NextRequest) {
   const authHeader = request.headers.get('authorization') || ''
@@ -42,17 +56,65 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
     const inviteRef = adminDb.collection('invites').doc(inviteId)
     const inviteSnap = await inviteRef.get()
     if (!inviteSnap.exists) return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
+    await ensureInviteOrderFoundation(adminDb, inviteId)
     const invite = inviteSnap.data() as any
+    const currentWorkflow = String(invite?.workflowStatus || '')
+    if (!APPROVAL_ALLOWED_STATUSES.has(currentWorkflow)) {
+      return NextResponse.json(
+        { error: `Approval is not allowed for workflow status: ${currentWorkflow || 'unknown'}.` },
+        { status: 409 }
+      )
+    }
+    const alreadyApproved = currentWorkflow === INVITE_WORKFLOW_STATUS.APPROVED
     const transitionError = getWorkflowTransitionError(
-      String(invite?.workflowStatus || ''),
+      currentWorkflow,
       INVITE_WORKFLOW_STATUS.APPROVED
     )
-    if (transitionError) {
+    if (transitionError && !alreadyApproved && currentWorkflow === INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW) {
       return NextResponse.json({ error: transitionError }, { status: 409 })
     }
-    const internalSnap = await adminDb.collection('invitation_internal').doc(inviteId).get()
+    const internalRef = adminDb.collection('invitation_internal').doc(inviteId)
+    const internalSnap = await internalRef.get()
     const internal = internalSnap.exists ? (internalSnap.data() as any) : {}
-    const adminPreviewUrl = String(internal?.adminPreviewUrl || '').trim()
+    const snapshot = (internal?.finalInvitationSnapshot || null) as FinalInvitationSnapshot | null
+    if (!snapshot?.templateId || !snapshot?.fields) {
+      return NextResponse.json({ error: 'Snapshot is missing. Open workshop first.' }, { status: 409 })
+    }
+
+    const templateType = (snapshot?.templateType || 'A') as SnapshotTemplateType
+    const strictFields = sanitizeRenderFieldsByTemplateType((snapshot?.fields || {}) as any, templateType)
+    const renderResponse = await fetch(`${request.nextUrl.origin}/api/render/final`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        templateId: snapshot.templateId,
+        variant: snapshot.variant || 'whatsapp_1080x1920',
+        fields: strictFields,
+        renderOptions: {
+          layoutB: (snapshot.renderOptions as any)?.layoutB || undefined,
+          blockStyleOverrides: (snapshot.renderOptions as any)?.blockStyleOverrides || {},
+          blockPositionOverrides: (snapshot.renderOptions as any)?.blockPositionOverrides || {},
+        },
+      }),
+    })
+    const renderData = await renderResponse.json().catch(() => ({}))
+    if (!renderResponse.ok || !renderData?.url) {
+      return NextResponse.json({ error: renderData?.error || 'Failed to render approved preview' }, { status: 500 })
+    }
+    const approvedPreviewUrl = String(renderData.url || '').trim()
+    await internalRef.set(
+      {
+        adminPreviewUrl: approvedPreviewUrl,
+        finalInvitationSnapshot: sanitizeForFirestore({
+          ...snapshot,
+          templateType,
+          fields: strictFields,
+          updatedAt: new Date().toISOString(),
+        }),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    )
 
     await inviteRef.set(
       {
@@ -62,10 +124,10 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
         workshopReviewedBy: adminUid,
         workshopReturnReason: FieldValue.delete(),
         // Expose preview to user only after approval.
-        ...(adminPreviewUrl
+        ...(approvedPreviewUrl
           ? {
-              previewUrl: adminPreviewUrl,
-              inviteImageUrl: adminPreviewUrl,
+              previewUrl: approvedPreviewUrl,
+              inviteImageUrl: approvedPreviewUrl,
             }
           : {}),
         updatedAt: FieldValue.serverTimestamp(),
