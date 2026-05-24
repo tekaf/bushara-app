@@ -29,6 +29,7 @@ type CheckoutDraft = {
 }
 
 type TimePeriod = 'AM' | 'PM'
+type CheckoutModalStage = 'otp' | 'payment'
 
 function normalizeArabicDigits(value: string): string {
   const arabicNums = '٠١٢٣٤٥٦٧٨٩'
@@ -52,6 +53,17 @@ function normalizeSaudiPhone(raw: string): { ok: true; local: string; e164: stri
   }
 
   return { ok: false, reason: 'رقم الجوال غير صحيح' }
+}
+
+const EXPECTED_OTP_HOSTNAMES = new Set(['localhost', '127.0.0.1', 'busharh.com', 'www.busharh.com'])
+
+function mapOtpErrorMessage(error: any) {
+  const code = String(error?.code || '').toLowerCase()
+  const message = String(error?.message || '').toLowerCase()
+  if (code.includes('auth/captcha-check-failed') || message.includes('captcha-check-failed')) {
+    return 'تعذر التحقق من أمان الطلب، يرجى تحديث الصفحة والمحاولة مرة أخرى.'
+  }
+  return String(error?.message || 'تعذر إرسال رمز التحقق. حاول مرة أخرى.')
 }
 
 function formatSelectedTime12(hour: string, minute: string, period: TimePeriod): string {
@@ -192,7 +204,9 @@ export default function CheckoutPage() {
   const [bypassCode, setBypassCode] = useState('')
   const [paymentError, setPaymentError] = useState('')
   const [gatewayNotice, setGatewayNotice] = useState('')
+  const [checkoutModalStage, setCheckoutModalStage] = useState<CheckoutModalStage>('otp')
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null)
+  const recaptchaInitializedRef = useRef(false)
   const otpInputRef = useRef<HTMLInputElement | null>(null)
   const isLocalPhoneVerifyBypassed =
     typeof window !== 'undefined' &&
@@ -294,9 +308,27 @@ export default function CheckoutPage() {
       if (recaptchaRef.current) {
         recaptchaRef.current.clear()
         recaptchaRef.current = null
+        recaptchaInitializedRef.current = false
       }
     }
   }, [])
+
+  const isExpectedOtpHostname = () => {
+    if (typeof window === 'undefined') return false
+    return EXPECTED_OTP_HOSTNAMES.has(window.location.hostname)
+  }
+
+  const logOtpDiagnostics = (phase: string) => {
+    if (typeof window === 'undefined') return
+    const hostname = window.location.hostname
+    console.info('[OTP][CHECKOUT]', {
+      phase,
+      hostname,
+      hostnameAllowed: EXPECTED_OTP_HOSTNAMES.has(hostname),
+      recaptchaInitialized: recaptchaInitializedRef.current,
+      modalOpen: showPhoneVerifyModal,
+    })
+  }
 
   const orderNumber = useMemo(() => {
     const key = draft?.templateId ? `bushara_order_number:${draft.templateId}` : ''
@@ -373,13 +405,44 @@ export default function CheckoutPage() {
     setOtpStatus('')
     setPaymentError('')
     setGatewayNotice('')
+    setCheckoutModalStage(phoneVerified ? 'payment' : 'otp')
+    logOtpDiagnostics('modal_opened')
+  }
+
+  const resetRecaptchaInstance = () => {
+    if (!recaptchaRef.current) return
+    try {
+      recaptchaRef.current.clear()
+    } catch {
+      // Ignore reset errors; the goal is to force a clean verifier on next use.
+    }
+    recaptchaRef.current = null
+    recaptchaInitializedRef.current = false
+    logOtpDiagnostics('recaptcha_reset')
+  }
+
+  const handleClosePhoneVerifyModal = () => {
+    setShowPhoneVerifyModal(false)
+    resetRecaptchaInstance()
+    setCheckoutModalStage('otp')
   }
 
   const ensureRecaptcha = () => {
-    if (recaptchaRef.current) return recaptchaRef.current
     const containerId = 'checkout-phone-recaptcha'
+    const containerEl = typeof document !== 'undefined' ? document.getElementById(containerId) : null
+    if (!containerEl) {
+      throw new Error('تعذر تهيئة أداة التحقق الأمني. يرجى تحديث الصفحة والمحاولة مرة أخرى.')
+    }
+    if (recaptchaRef.current) {
+      // If modal was reopened, ensure verifier still points to a mounted container.
+      const stillMounted = containerEl.isConnected
+      if (stillMounted) return recaptchaRef.current
+      resetRecaptchaInstance()
+    }
     const verifier = new RecaptchaVerifier(auth, containerId, { size: 'invisible' })
     recaptchaRef.current = verifier
+    recaptchaInitializedRef.current = true
+    logOtpDiagnostics('recaptcha_initialized')
     return verifier
   }
 
@@ -395,10 +458,16 @@ export default function CheckoutPage() {
       setOtpError(normalizedPhone.reason)
       return
     }
+    if (!isExpectedOtpHostname()) {
+      setOtpError('تعذر التحقق من أمان الطلب، يرجى تحديث الصفحة والمحاولة مرة أخرى.')
+      logOtpDiagnostics('hostname_not_allowed')
+      return
+    }
 
     setOtpError('')
     setOtpStatus('')
     setOtpSending(true)
+    logOtpDiagnostics('sending_otp')
     try {
       const verifier = ensureRecaptcha()
       const provider = new PhoneAuthProvider(auth)
@@ -411,9 +480,14 @@ export default function CheckoutPage() {
       setVerifiedPhoneLocal('')
       setResendSecondsLeft(30)
       setOtpStatus(`تم إرسال رمز التحقق إلى ${normalizedPhone.local}`)
+      logOtpDiagnostics('otp_sent')
     } catch (error: any) {
       console.error('Failed sending checkout OTP:', error)
-      setOtpError(error?.message || 'تعذر إرسال رمز التحقق. حاول مرة أخرى.')
+      setOtpError(mapOtpErrorMessage(error))
+      if (String(error?.code || '').toLowerCase().includes('auth/captcha-check-failed')) {
+        resetRecaptchaInstance()
+      }
+      logOtpDiagnostics('otp_send_failed')
     } finally {
       setOtpSending(false)
     }
@@ -462,7 +536,7 @@ export default function CheckoutPage() {
       setPhoneVerified(false)
       setVerifiedPhoneE164('')
       setVerifiedPhoneLocal('')
-      setOtpError(error?.message || 'رمز التحقق غير صحيح أو منتهي الصلاحية.')
+      setOtpError(mapOtpErrorMessage(error) || 'رمز التحقق غير صحيح أو منتهي الصلاحية.')
       return false
     } finally {
       setOtpVerifying(false)
@@ -472,7 +546,9 @@ export default function CheckoutPage() {
   const handleConfirmOtpAndContinue = async () => {
     const ok = await handleVerifyOtp()
     if (!ok) return
-    await handleStartPaymentFlow()
+    setPaymentError('')
+    setGatewayNotice('')
+    setCheckoutModalStage('payment')
   }
 
   const handleBypassPhoneVerifyAndContinue = async () => {
@@ -492,10 +568,9 @@ export default function CheckoutPage() {
     setVerifiedPhoneE164(normalizedPhone.e164)
     setVerifiedPhoneLocal(normalizedPhone.local)
     await persistPhoneVerificationArtifacts(normalizedPhone.e164, normalizedPhone.local)
-    await handleStartPaymentFlow({
-      phoneE164: normalizedPhone.e164,
-      phoneLocal: normalizedPhone.local,
-    })
+    setPaymentError('')
+    setGatewayNotice('')
+    setCheckoutModalStage('payment')
   }
 
   const finalizeInviteAfterPayment = async (
@@ -773,7 +848,7 @@ export default function CheckoutPage() {
       alert(
         'تم استلام طلبك بنجاح. قاعدين نصمم دعوة بشاره لك، وبنرسلها لك بأقرب وقت ممكن بعد المراجعة والتأكد. شكرًا لاختيارك بشاره 💜'
       )
-      setShowPhoneVerifyModal(false)
+      handleClosePhoneVerifyModal()
       router.push(`/dashboard/invites/${encodeURIComponent(inviteId)}/workshop-status`)
     } catch (error) {
       console.error('Failed to create invite after payment:', error)
@@ -828,6 +903,7 @@ export default function CheckoutPage() {
   }
 
   const showGatewayOptions = phoneVerified && !paying
+  const isOtpStage = checkoutModalStage === 'otp'
 
   const handleGatewayMethodClick = (method: 'apple_pay' | 'card') => {
     const methodLabel = method === 'apple_pay' ? 'Apple Pay' : 'الدفع بالبطاقة'
@@ -989,16 +1065,20 @@ export default function CheckoutPage() {
           <div className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-5 md:p-6 shadow-xl">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-xl font-bold text-textDark">توثيق رقم الجوال</h3>
+                <h3 className="text-xl font-bold text-textDark">
+                  {isOtpStage ? 'توثيق رقم الجوال' : 'خيارات الدفع'}
+                </h3>
                 <p className="mt-1 text-sm text-muted">
-                  {isLocalPhoneVerifyBypassed
-                    ? 'وضع محلي: أدخل رقم الجوال وسيتم حفظه مباشرة بدون OTP.'
-                    : 'أدخل رقمك ثم تحقق بالرمز لإكمال الدفع بأمان.'}
+                  {isOtpStage
+                    ? isLocalPhoneVerifyBypassed
+                      ? 'وضع محلي: أدخل رقم الجوال وسيتم حفظه مباشرة بدون OTP.'
+                      : 'الخطوة 1 من 2: أدخل رقمك وتحقق بالرمز.'
+                    : 'الخطوة 2 من 2: اختر وسيلة الدفع أو أدخل كود التجاوز.'}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setShowPhoneVerifyModal(false)}
+                onClick={handleClosePhoneVerifyModal}
                 className="rounded-lg border border-gray-200 px-2 py-1 text-sm text-gray-500 hover:bg-gray-50"
               >
                 إغلاق
@@ -1006,113 +1086,161 @@ export default function CheckoutPage() {
             </div>
 
             <div className="space-y-3">
-              {otpStep === 1 ? (
-                <input
-                  type="tel"
-                  value={phoneInput}
-                  onChange={(e) => {
-                    setPhoneInput(e.target.value)
-                    setPhoneVerified(false)
-                    setVerifiedPhoneE164('')
-                    setVerifiedPhoneLocal('')
-                    setOtpVerificationId('')
-                    setPendingOtpPhoneE164('')
-                    setOtpCode('')
-                    setOtpStatus('')
-                    setOtpError('')
-                    setGatewayNotice('')
-                    setResendSecondsLeft(0)
-                  }}
-                  placeholder="05xxxxxxxx"
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-                />
+              {isOtpStage ? (
+                <>
+                  {otpStep === 1 ? (
+                    <input
+                      type="tel"
+                      value={phoneInput}
+                      onChange={(e) => {
+                        setPhoneInput(e.target.value)
+                        setPhoneVerified(false)
+                        setVerifiedPhoneE164('')
+                        setVerifiedPhoneLocal('')
+                        setOtpVerificationId('')
+                        setPendingOtpPhoneE164('')
+                        setOtpCode('')
+                        setOtpStatus('')
+                        setOtpError('')
+                        setGatewayNotice('')
+                        setResendSecondsLeft(0)
+                      }}
+                      placeholder="05xxxxxxxx"
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  ) : (
+                    <>
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-textDark">
+                        ✔️ رقم الجوال: {normalizedPhone.ok ? normalizedPhone.local : phoneInput}
+                      </div>
+                      <input
+                        ref={otpInputRef}
+                        type="text"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value)}
+                        placeholder="أدخل رمز OTP"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                    </>
+                  )}
+                  {otpStatus && <p className="text-xs text-green-700">{otpStatus}</p>}
+                  {otpError && <p className="text-xs text-red-600">{otpError}</p>}
+                  {otpStep === 2 && resendSecondsLeft > 0 && (
+                    <p className="text-xs text-gray-500">إعادة إرسال الرمز خلال {resendSecondsLeft} ثانية</p>
+                  )}
+                </>
               ) : (
                 <>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-textDark">
-                    ✔️ رقم الجوال: {normalizedPhone.ok ? normalizedPhone.local : phoneInput}
+                  <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                    تم توثيق رقم الجوال بنجاح: {verifiedPhoneLocal || (normalizedPhone.ok ? normalizedPhone.local : '-')}
                   </div>
-                  <input
-                    ref={otpInputRef}
-                    type="text"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    placeholder="أدخل رمز OTP"
-                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-                  />
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted">اختياري: كود تجاوز الدفع (للاستخدام الداخلي فقط)</p>
+                    <input
+                      type="text"
+                      value={bypassCode}
+                      onChange={(e) => setBypassCode(e.target.value)}
+                      placeholder="أدخل كود التجاوز"
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                  {showGatewayOptions ? (
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+                      <p className="mb-2 text-sm font-semibold text-textDark">بوابة الدفع</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => handleGatewayMethodClick('apple_pay')}
+                          className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                        >
+                          Apple Pay
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleGatewayMethodClick('card')}
+                          className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                        >
+                          الدفع بالبطاقة
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {paymentError && <p className="text-xs text-red-600">{paymentError}</p>}
+                  {gatewayNotice && <p className="text-xs text-amber-700">{gatewayNotice}</p>}
+                  <button
+                    type="button"
+                    onClick={() => handleStartPaymentFlow()}
+                    disabled={paying || authLoading || !user}
+                    className="mt-1 h-12 w-full rounded-xl bg-primary font-semibold text-white hover:bg-accent transition-colors disabled:opacity-50"
+                  >
+                    {paying ? 'جارٍ المعالجة...' : 'متابعة الدفع'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCheckoutModalStage('otp')
+                      setPhoneVerified(false)
+                      setVerifiedPhoneE164('')
+                      setVerifiedPhoneLocal('')
+                      setOtpVerificationId('')
+                      setPendingOtpPhoneE164('')
+                      setOtpCode('')
+                      setOtpError('')
+                      setOtpStatus('')
+                      setPaymentError('')
+                      setGatewayNotice('')
+                    }}
+                    className="h-11 w-full rounded-xl border border-gray-300 bg-white font-semibold text-textDark hover:bg-gray-50 transition-colors"
+                  >
+                    تعديل رقم الجوال
+                  </button>
                 </>
               )}
-              {otpStatus && <p className="text-xs text-green-700">{otpStatus}</p>}
-              {otpError && <p className="text-xs text-red-600">{otpError}</p>}
-              {paymentError && <p className="text-xs text-red-600">{paymentError}</p>}
-              {gatewayNotice && <p className="text-xs text-amber-700">{gatewayNotice}</p>}
-              {otpStep === 2 && resendSecondsLeft > 0 && (
-                <p className="text-xs text-gray-500">إعادة إرسال الرمز خلال {resendSecondsLeft} ثانية</p>
-              )}
-              {phoneVerified && (
-                <div className="space-y-2">
-                  <p className="text-xs text-muted">اختياري: كود تجاوز الدفع (للاستخدام الداخلي فقط)</p>
-                  <input
-                    type="text"
-                    value={bypassCode}
-                    onChange={(e) => setBypassCode(e.target.value)}
-                    placeholder="أدخل كود التجاوز"
-                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-              )}
-              {showGatewayOptions ? (
-                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
-                  <p className="mb-2 text-sm font-semibold text-textDark">بوابة الدفع</p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => handleGatewayMethodClick('apple_pay')}
-                      className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
-                    >
-                      Apple Pay
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleGatewayMethodClick('card')}
-                      className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
-                    >
-                      الدفع بالبطاقة
-                    </button>
-                  </div>
-                </div>
-              ) : null}
             </div>
 
-            <button
-              type="button"
-              onClick={
-                isLocalPhoneVerifyBypassed
-                  ? handleBypassPhoneVerifyAndContinue
+            {isOtpStage ? (
+              <button
+                type="button"
+                onClick={
+                  isLocalPhoneVerifyBypassed
+                    ? handleBypassPhoneVerifyAndContinue
+                    : otpStep === 1
+                    ? handleSendOtp
+                    : handleConfirmOtpAndContinue
+                }
+                disabled={
+                  isLocalPhoneVerifyBypassed
+                    ? otpSending || otpVerifying || paying || authLoading || !user
+                    : otpStep === 1
+                    ? otpSending || otpVerifying || !user
+                    : otpSending || otpVerifying || paying || authLoading || !otpCode.trim()
+                }
+                className="mt-5 h-12 w-full rounded-xl bg-primary font-semibold text-white hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                {isLocalPhoneVerifyBypassed
+                  ? otpVerifying || paying
+                    ? 'جارٍ الحفظ...'
+                    : 'حفظ الرقم والمتابعة'
                   : otpStep === 1
-                  ? handleSendOtp
-                  : handleConfirmOtpAndContinue
-              }
-              disabled={
-                isLocalPhoneVerifyBypassed
-                  ? otpSending || otpVerifying || paying || authLoading || !user
-                  : otpStep === 1
-                  ? otpSending || otpVerifying || !user
-                  : otpSending || otpVerifying || paying || authLoading || !otpCode.trim()
-              }
-              className="mt-5 h-12 w-full rounded-xl bg-primary font-semibold text-white hover:bg-accent transition-colors disabled:opacity-50"
-            >
-              {isLocalPhoneVerifyBypassed
-                ? otpVerifying || paying
-                  ? 'جارٍ الحفظ...'
-                  : 'حفظ الرقم والمتابعة'
-                : otpStep === 1
-                ? otpSending
-                  ? 'جارٍ إرسال الرمز...'
-                  : 'إرسال رمز التحقق'
-                : otpVerifying || paying
-                ? 'جارٍ المعالجة...'
-                : 'تأكيد الرمز وعرض خيارات الدفع'}
-            </button>
+                  ? otpSending
+                    ? 'جارٍ إرسال الرمز...'
+                    : 'إرسال رمز التحقق'
+                  : otpVerifying || paying
+                  ? 'جارٍ المعالجة...'
+                  : 'تأكيد رقم الجوال'}
+              </button>
+            ) : null}
+
+            {isOtpStage && otpStep === 2 && !isLocalPhoneVerifyBypassed ? (
+              <button
+                type="button"
+                onClick={handleSendOtp}
+                disabled={otpSending || otpVerifying || resendSecondsLeft > 0}
+                className="mt-3 h-10 w-full rounded-xl border border-gray-300 bg-white text-sm font-semibold text-textDark hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                {resendSecondsLeft > 0 ? `إعادة إرسال الرمز خلال ${resendSecondsLeft} ث` : 'إعادة إرسال رمز التحقق'}
+              </button>
+            ) : null}
 
             {!isLocalPhoneVerifyBypassed && <div id="checkout-phone-recaptcha" />}
           </div>
