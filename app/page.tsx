@@ -62,22 +62,6 @@ export default function Home() {
       />
       <FirstVisitIntro />
       <Navbar />
-      <section className="px-4 pb-4 pt-6 sm:pb-6">
-        <div className="container mx-auto rounded-[20px] border border-[rgba(150,160,190,0.18)] bg-white/70 p-4 shadow-[0_10px_26px_rgba(31,36,51,0.05)] backdrop-blur-xl sm:p-6">
-          <h1 className="mb-3 text-[22px] font-bold leading-[1.35] text-[#1F2433] sm:text-[28px]">
-            دعوات إلكترونية احترافية للمناسبات
-          </h1>
-          <p className="text-[14px] leading-7 text-[#6E7386] sm:text-[16px]">
-            بشاره منصة لإنشاء دعوات إلكترونية للزواج والخطوبة والمناسبات.
-          </p>
-          <p className="text-[14px] leading-7 text-[#6E7386] sm:text-[16px]">
-            اختر التصميم، أضف بيانات المناسبة، وأرسل الدعوة للمدعوين عبر واتساب.
-          </p>
-          <p className="text-[14px] leading-7 text-[#6E7386] sm:text-[16px]">
-            يدعم النظام RSVP وإدارة قائمة المدعوين بطريقة سهلة ومنظمة.
-          </p>
-        </div>
-      </section>
       <Hero />
       <Features />
 

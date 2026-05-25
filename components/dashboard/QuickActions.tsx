@@ -1,33 +1,63 @@
 'use client'
 
 import Link from 'next/link'
-import { Heart, LayoutTemplate, Package, Ticket, Users, Wand2 } from 'lucide-react'
+import { ChevronLeft, Heart, Ticket, Users, Wand2 } from 'lucide-react'
 
 const actions = [
-  { title: 'صمم دعوة جديدة', desc: 'ابدأ تصميم الدعوة خلال دقائق', href: '/packages', icon: Wand2 },
-  { title: 'اختر باقة', desc: 'الباقات حسب عدد الضيوف', href: '/packages', icon: Package },
-  { title: 'باقاتي', desc: 'الدعوات المدفوعة والباقات المفعلة لديك', href: '/dashboard/invites', icon: Ticket },
-  { title: 'المدعوين', desc: 'إدارة الضيوف والردود', href: '/dashboard/guests', icon: Users },
-  { title: 'التصاميم المفضلة', desc: 'القوالب التي أعجبتك', href: '/templates', icon: Heart },
-  { title: 'دعواتي السابقة', desc: 'آخر الدعوات التي أنشأتها', href: '/dashboard/invites', icon: LayoutTemplate },
+  {
+    title: 'صمم دعوة جديدة',
+    href: '/packages',
+    icon: Wand2,
+    tone: 'from-violet-500/10 to-white text-violet-700',
+  },
+  {
+    title: 'المدعوون',
+    href: '/dashboard/guests',
+    icon: Users,
+    tone: 'from-sky-500/10 to-white text-sky-700',
+  },
+  {
+    title: 'باقاتي',
+    href: '/dashboard/invites',
+    icon: Ticket,
+    tone: 'from-amber-500/10 to-white text-amber-800',
+  },
+  {
+    title: 'التصاميم المفضلة',
+    href: '/templates',
+    icon: Heart,
+    tone: 'from-rose-500/10 to-white text-rose-700',
+  },
 ]
 
-export default function QuickActions() {
+export default function QuickActions({ guestsHref }: { guestsHref?: string }) {
   return (
     <section>
-      <h2 className="text-2xl font-bold mb-4">خدمات سريعة</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {actions.map((action) => (
-          <Link
-            key={action.title}
-            href={action.href}
-            className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md"
-          >
-            <action.icon className="w-6 h-6 text-primary mb-3" />
-            <h3 className="mb-1 font-bold text-textDark">{action.title}</h3>
-            <p className="text-sm font-medium leading-6 text-muted">{action.desc}</p>
-          </Link>
-        ))}
+      <h2 className="mb-3 text-sm font-semibold text-muted">أدوات سريعة</h2>
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3">
+        {actions.map((action) => {
+          const href =
+            action.title === 'المدعوون' && guestsHref ? guestsHref : action.href
+          return (
+            <Link
+              key={action.title}
+              href={href}
+              className={[
+                'group flex items-center gap-3 rounded-2xl border border-gray-100/90 bg-gradient-to-br p-3.5 shadow-sm transition',
+                'hover:-translate-y-0.5 hover:border-primary/15 hover:shadow-md',
+                action.tone,
+              ].join(' ')}
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/90 shadow-sm">
+                <action.icon className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold text-textDark">{action.title}</span>
+              </span>
+              <ChevronLeft className="h-4 w-4 shrink-0 text-muted/50 transition group-hover:text-primary" />
+            </Link>
+          )
+        })}
       </div>
     </section>
   )
