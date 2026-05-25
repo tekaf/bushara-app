@@ -4,40 +4,12 @@ import type { Template } from '@/lib/firebase/types'
 import { getPreset } from '@/lib/template-presets/loader'
 import { generateHTML, type RenderFields } from '@/lib/render/engine'
 import { formatDateForInvitation } from '@/lib/render/date-format'
-import { closeServerlessBrowser, launchServerlessBrowser } from '@/lib/pdf/launch-browser'
+import { renderHtmlToPngBuffer } from '@/lib/pdf/render-html-screenshot'
 
 export const runtime = 'nodejs'
-export const maxDuration = 30
-
-async function getBrowser() {
-  const browser = await launchServerlessBrowser()
-  console.log('✅ [RENDER] Browser launched')
-  return browser
-}
-
-async function waitForRenderAssets(page: any) {
-  await page.waitForLoadState('networkidle')
-  await page.evaluate(async () => {
-    // Wait for all webfonts used in the document.
-    // @ts-ignore
-    await document.fonts.ready
-
-    // Wait for <img> tags to finish loading.
-    const imgs = Array.from(document.images)
-    await Promise.all(
-      imgs.map((img) =>
-        img.complete
-          ? Promise.resolve()
-          : new Promise((resolve) => {
-              img.onload = img.onerror = () => resolve(null)
-            })
-      )
-    )
-  })
-}
+export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
-  let browserInstance: Awaited<ReturnType<typeof launchServerlessBrowser>> | null = null
   try {
     console.log('📤 [RENDER] Starting render request...')
     const { templateId, variant, fields: rawFields, customPreset, customBackgroundUrl } = await request.json()
@@ -150,37 +122,13 @@ export async function POST(request: NextRequest) {
     })
     console.log('✅ [RENDER] HTML generated', debugMode ? '(DEBUG MODE)' : '', showGrid ? '(GRID MODE)' : '')
 
-    // Render with Playwright
-    console.log('📤 [RENDER] Launching browser...')
-    browserInstance = await getBrowser()
-    console.log('✅ [RENDER] Browser launched')
-    
-    const context = await browserInstance.newContext({
-      viewport: { width: 1080, height: 1920 },
+    console.log('📤 [RENDER] Rendering HTML to PNG...')
+    const screenshot = await renderHtmlToPngBuffer(html, {
+      width: 1080,
+      height: 1920,
       deviceScaleFactor: 2,
     })
-    const page = await context.newPage()
-
-    console.log('📤 [RENDER] Setting page content...')
-    await page.setContent(html, { waitUntil: 'networkidle' })
-    await waitForRenderAssets(page)
-
-    console.log('📤 [RENDER] Taking screenshot...')
-    // HARD-FIX: Exact size screenshot, no scaling
-    const screenshot = await page.screenshot({
-      type: 'png',
-      scale: 'device',
-      clip: {
-        x: 0,
-        y: 0,
-        width: 1080,
-        height: 1920,
-      },
-    })
-    console.log('✅ [RENDER] Screenshot taken, size:', (screenshot as Buffer).length, 'bytes')
-
-    await page.close()
-    await context.close()
+    console.log('✅ [RENDER] Screenshot taken, size:', screenshot.length, 'bytes')
 
     // Upload to Storage using Admin SDK
     console.log('📤 [RENDER] Uploading to Storage...')
@@ -197,7 +145,7 @@ export async function POST(request: NextRequest) {
     const fileName = `outputs/${renderId}/preview.png`
     const fileRef = bucket.file(fileName)
     
-    await fileRef.save(screenshot as Buffer, {
+    await fileRef.save(screenshot, {
       metadata: {
         contentType: 'image/png',
       },
@@ -258,8 +206,6 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     )
-  } finally {
-    await closeServerlessBrowser(browserInstance)
   }
 }
 

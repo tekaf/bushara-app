@@ -1,7 +1,9 @@
-import { existsSync, rmSync } from 'node:fs'
-import path from 'node:path'
+import './chromium-env'
+
+import { existsSync, rmSync } from 'fs'
+import path from 'path'
 import chromium from '@sparticuz/chromium'
-import { chromium as playwrightChromium, type Browser } from 'playwright-core'
+import puppeteer, { type Browser } from 'puppeteer-core'
 
 let cachedBrowser: Browser | null = null
 
@@ -21,40 +23,31 @@ function appendLdLibraryPath(baseLibPath: string) {
 }
 
 function chromiumSharedLibsReady() {
-  return (
-    existsSync('/tmp/al2023/lib/libnss3.so') ||
-    existsSync('/tmp/al2/lib/libnss3.so') ||
-    existsSync(path.join(path.dirname('/tmp/chromium'), 'libnss3.so'))
-  )
+  return existsSync('/tmp/al2023/lib/libnss3.so') || existsSync('/tmp/al2/lib/libnss3.so')
 }
 
-/** Vercel is not always detected at @sparticuz/chromium import time — configure libs before launch. */
+function clearStaleChromiumArtifacts() {
+  if (!existsSync('/tmp/chromium')) return
+  if (chromiumSharedLibsReady()) return
+  try {
+    rmSync('/tmp/chromium', { force: true })
+    rmSync('/tmp/al2023', { recursive: true, force: true })
+    rmSync('/tmp/al2', { recursive: true, force: true })
+  } catch {
+    // ignore cleanup errors
+  }
+}
+
 function prepareServerlessChromiumEnv() {
   if (!isServerlessRuntime()) return
-
-  process.env.AWS_LAMBDA_JS_RUNTIME ??= process.version.startsWith('v22') ? 'nodejs22.x' : 'nodejs20.x'
-  process.env.FONTCONFIG_PATH ??= '/tmp/fonts'
-
+  clearStaleChromiumArtifacts()
   appendLdLibraryPath('/tmp/al2023/lib')
   appendLdLibraryPath('/tmp/al2/lib')
-
-  const graphicsModeControl = (chromium as { setGraphicsMode?: boolean | ((enabled: boolean) => void) }).setGraphicsMode
-  if (typeof graphicsModeControl === 'function') {
-    graphicsModeControl(false)
-  }
-
-  // Stale /tmp/chromium from a prior run without shared libs breaks subsequent launches.
-  if (existsSync('/tmp/chromium') && !chromiumSharedLibsReady()) {
-    try {
-      rmSync('/tmp/chromium', { force: true })
-    } catch {
-      // ignore cleanup errors
-    }
-  }
+  process.env.FONTCONFIG_PATH ??= '/tmp/fonts'
 }
 
 export async function launchServerlessBrowser(): Promise<Browser> {
-  if (!isServerlessRuntime() && cachedBrowser?.isConnected()) {
+  if (!isServerlessRuntime() && cachedBrowser?.connected) {
     return cachedBrowser
   }
 
@@ -68,12 +61,13 @@ export async function launchServerlessBrowser(): Promise<Browser> {
 
     if (isServerlessRuntime() && !chromiumSharedLibsReady()) {
       throw new Error(
-        'Chromium shared libraries were not extracted. Set AWS_LAMBDA_JS_RUNTIME=nodejs20.x on Vercel and redeploy.'
+        'Chromium libs missing on serverless. Add AWS_LAMBDA_JS_RUNTIME=nodejs20.x in Vercel env and redeploy.'
       )
     }
 
-    const browser = await playwrightChromium.launch({
+    const browser = await puppeteer.launch({
       args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
       executablePath,
       headless: true,
     })
@@ -88,7 +82,7 @@ export async function launchServerlessBrowser(): Promise<Browser> {
       throw new Error(`Failed to launch serverless Chromium: ${message}`)
     }
 
-    cachedBrowser = await playwrightChromium.launch({ headless: true })
+    cachedBrowser = await puppeteer.launch({ headless: true })
     return cachedBrowser
   }
 }

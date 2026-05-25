@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    serverComponentsExternalPackages: ['playwright-core', '@sparticuz/chromium', 'sharp'],
+    serverComponentsExternalPackages: ['puppeteer-core', '@sparticuz/chromium', 'sharp'],
   },
   images: {
     domains: ['firebasestorage.googleapis.com', 'storage.googleapis.com'],
@@ -19,7 +19,7 @@ const nextConfig = {
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals.push({
-        'playwright-core': 'commonjs playwright-core',
+        'puppeteer-core': 'commonjs puppeteer-core',
         '@sparticuz/chromium': 'commonjs @sparticuz/chromium',
       })
     }

@@ -1,3 +1,4 @@
+import type { Browser, Page } from 'puppeteer-core'
 import { closeServerlessBrowser, launchServerlessBrowser } from '@/lib/pdf/launch-browser'
 
 const VIEWPORT_WIDTH = 1080
@@ -7,7 +8,6 @@ const TARGET_WIDTH = VIEWPORT_WIDTH * DEVICE_SCALE_FACTOR
 const TARGET_HEIGHT = VIEWPORT_HEIGHT * DEVICE_SCALE_FACTOR
 
 function getPngDimensions(buffer: Buffer) {
-  // PNG IHDR chunk stores width/height at bytes 16..23 (big-endian).
   if (buffer.length < 24 || buffer.toString('ascii', 1, 4) !== 'PNG') {
     throw new Error('Invalid PNG output from PDF conversion')
   }
@@ -18,12 +18,8 @@ function getPngDimensions(buffer: Buffer) {
   }
 }
 
-async function launchBrowser() {
-  return launchServerlessBrowser()
-}
-
-async function renderPdfBufferWithPdfJs(context: any, pdfBuffer: Buffer) {
-  const page = await context.newPage()
+async function renderPdfBufferWithPdfJs(browser: Browser, pdfBuffer: Buffer) {
+  const page = await browser.newPage()
   const pdfBase64 = pdfBuffer.toString('base64')
 
   const html = `
@@ -61,20 +57,16 @@ async function renderPdfBufferWithPdfJs(context: any, pdfBuffer: Buffer) {
             const bytes = new Uint8Array(binary.length);
             for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
-            const loadingTask = pdfjsLib.getDocument({ data: bytes });
-            const pdf = await loadingTask.promise;
+            const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
             const firstPage = await pdf.getPage(1);
+            const viewport = firstPage.getViewport({ scale: 1 });
+            const targetW = ${TARGET_WIDTH};
+            const targetH = ${TARGET_HEIGHT};
+            const scale = Math.min(targetW / viewport.width, targetH / viewport.height);
+            const scaledViewport = firstPage.getViewport({ scale });
 
             const canvas = document.getElementById('pdf-canvas');
             const ctx = canvas.getContext('2d');
-            if (!ctx) throw new Error('2D context unavailable');
-
-            const targetW = ${TARGET_WIDTH};
-            const targetH = ${TARGET_HEIGHT};
-            const baseViewport = firstPage.getViewport({ scale: 1 });
-            const scale = Math.max(targetW / baseViewport.width, targetH / baseViewport.height);
-            const scaledViewport = firstPage.getViewport({ scale });
-
             const offscreen = document.createElement('canvas');
             offscreen.width = Math.ceil(scaledViewport.width);
             offscreen.height = Math.ceil(scaledViewport.height);
@@ -103,7 +95,12 @@ async function renderPdfBufferWithPdfJs(context: any, pdfBuffer: Buffer) {
     </html>
   `
 
-  await page.setContent(html, { waitUntil: 'networkidle' })
+  await page.setViewport({
+    width: VIEWPORT_WIDTH,
+    height: VIEWPORT_HEIGHT,
+    deviceScaleFactor: DEVICE_SCALE_FACTOR,
+  })
+  await page.setContent(html, { waitUntil: 'networkidle0', timeout: 45000 })
   await page.waitForFunction(
     () => {
       const status = document.body.getAttribute('data-render-status')
@@ -118,45 +115,40 @@ async function renderPdfBufferWithPdfJs(context: any, pdfBuffer: Buffer) {
     throw new Error(`pdf.js render failed: ${renderError || 'unknown error'}`)
   }
 
-  return (await page.screenshot({
+  const screenshot = await page.screenshot({
     type: 'png',
-    fullPage: false,
-    clip: {
-      x: 0,
-      y: 0,
-      width: VIEWPORT_WIDTH,
-      height: VIEWPORT_HEIGHT,
-    },
-    scale: 'device',
-  })) as Buffer
+    clip: { x: 0, y: 0, width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT },
+    omitBackground: false,
+  })
+  await page.close()
+  return Buffer.from(screenshot as Uint8Array)
+}
+
+async function screenshotPageClip(page: Page) {
+  const screenshot = await page.screenshot({
+    type: 'png',
+    clip: { x: 0, y: 0, width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT },
+    omitBackground: false,
+  })
+  return Buffer.from(screenshot as Uint8Array)
 }
 
 export async function convertPdfUrlToPng(pdfUrl: string) {
   const startedAt = Date.now()
-  const browser = await launchBrowser()
-  const context = await browser.newContext({
-    viewport: { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT },
-    deviceScaleFactor: DEVICE_SCALE_FACTOR,
-  })
+  const browser = await launchServerlessBrowser()
 
   try {
     try {
-      const page = await context.newPage()
-      await page.goto(pdfUrl, { waitUntil: 'networkidle' })
-      await page.waitForLoadState('networkidle')
-      await page.waitForTimeout(500)
-
-      const pngBuffer = (await page.screenshot({
-        type: 'png',
-        fullPage: false,
-        clip: {
-          x: 0,
-          y: 0,
-          width: VIEWPORT_WIDTH,
-          height: VIEWPORT_HEIGHT,
-        },
-        scale: 'device',
-      })) as Buffer
+      const page = await browser.newPage()
+      await page.setViewport({
+        width: VIEWPORT_WIDTH,
+        height: VIEWPORT_HEIGHT,
+        deviceScaleFactor: DEVICE_SCALE_FACTOR,
+      })
+      await page.goto(pdfUrl, { waitUntil: 'networkidle0', timeout: 45000 })
+      await new Promise((r) => setTimeout(r, 500))
+      const pngBuffer = await screenshotPageClip(page)
+      await page.close()
 
       const dimensions = getPngDimensions(pngBuffer)
       if (dimensions.width !== TARGET_WIDTH || dimensions.height !== TARGET_HEIGHT) {
@@ -181,7 +173,7 @@ export async function convertPdfUrlToPng(pdfUrl: string) {
       }
       const pdfArrayBuffer = await pdfResponse.arrayBuffer()
       const pdfBuffer = Buffer.from(pdfArrayBuffer)
-      const pngBuffer = await renderPdfBufferWithPdfJs(context, pdfBuffer)
+      const pngBuffer = await renderPdfBufferWithPdfJs(browser, pdfBuffer)
 
       const dimensions = getPngDimensions(pngBuffer)
       if (dimensions.width !== TARGET_WIDTH || dimensions.height !== TARGET_HEIGHT) {
@@ -197,21 +189,16 @@ export async function convertPdfUrlToPng(pdfUrl: string) {
       }
     }
   } finally {
-    await context.close()
     await closeServerlessBrowser(browser)
   }
 }
 
 export async function convertPdfBufferToPng(pdfBuffer: Buffer) {
   const startedAt = Date.now()
-  const browser = await launchBrowser()
-  const context = await browser.newContext({
-    viewport: { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT },
-    deviceScaleFactor: DEVICE_SCALE_FACTOR,
-  })
+  const browser = await launchServerlessBrowser()
 
   try {
-    const pngBuffer = await renderPdfBufferWithPdfJs(context, pdfBuffer)
+    const pngBuffer = await renderPdfBufferWithPdfJs(browser, pdfBuffer)
     const dimensions = getPngDimensions(pngBuffer)
     if (dimensions.width !== TARGET_WIDTH || dimensions.height !== TARGET_HEIGHT) {
       throw new Error(
@@ -224,21 +211,17 @@ export async function convertPdfBufferToPng(pdfBuffer: Buffer) {
       elapsedMs: Date.now() - startedAt,
     }
   } finally {
-    await context.close()
     await closeServerlessBrowser(browser)
   }
 }
 
 export async function createThumbnailFromPngBuffer(pngBuffer: Buffer) {
   const startedAt = Date.now()
-  const browser = await launchBrowser()
-  const context = await browser.newContext({
-    viewport: { width: 400, height: 600 },
-    deviceScaleFactor: 1,
-  })
+  const browser = await launchServerlessBrowser()
 
   try {
-    const page = await context.newPage()
+    const page = await browser.newPage()
+    await page.setViewport({ width: 400, height: 600, deviceScaleFactor: 1 })
     const base64 = pngBuffer.toString('base64')
     const html = `
       <!doctype html>
@@ -250,20 +233,20 @@ export async function createThumbnailFromPngBuffer(pngBuffer: Buffer) {
       </html>
     `
 
-    await page.setContent(html, { waitUntil: 'networkidle' })
-    const thumbBuffer = (await page.screenshot({
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 })
+    const thumbBuffer = await page.screenshot({
       type: 'jpeg',
       quality: 85,
-      fullPage: false,
       clip: { x: 0, y: 0, width: 400, height: 600 },
-    })) as Buffer
+      omitBackground: false,
+    })
+    await page.close()
 
     return {
-      thumbBuffer,
+      thumbBuffer: Buffer.from(thumbBuffer as Uint8Array),
       elapsedMs: Date.now() - startedAt,
     }
   } finally {
-    await context.close()
     await closeServerlessBrowser(browser)
   }
 }
