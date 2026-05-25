@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import html2canvas from 'html2canvas'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Download, Minus, Pipette, Plus, Save } from 'lucide-react'
@@ -525,6 +526,27 @@ export default function AdminWorkshopPage() {
     })
   }
 
+  const captureIframePreviewBase64 = async (): Promise<string> => {
+    const doc = iframeRef.current?.contentDocument
+    const body = doc?.body
+    if (!body) throw new Error('تعذر الوصول لمعاينة الدعوة داخل المحرر.')
+
+    const canvas = await html2canvas(body, {
+      width: BASE_WIDTH,
+      height: BASE_HEIGHT,
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: null,
+      logging: false,
+    })
+    const dataUrl = canvas.toDataURL('image/png', 0.95)
+    if (!dataUrl || dataUrl.length < 100) {
+      throw new Error('فشل التقاط صورة المعاينة من المحرر.')
+    }
+    return dataUrl
+  }
+
   const persistWorkshopEdits = async () => {
     if (!user || !inviteId) return
     const token = await user.getIdToken()
@@ -560,20 +582,20 @@ export default function AdminWorkshopPage() {
       if (!editRes.ok) throw new Error(editData?.error || 'Failed to save invite edits')
     }
 
-    try {
-      const previewRes = await fetch(`/api/admin/invitations/review/${encodeURIComponent(inviteId)}/regenerate-preview`, {
+    const imageBase64 = await captureIframePreviewBase64()
+    const uploadRes = await fetch(
+      `/api/admin/invitations/review/${encodeURIComponent(inviteId)}/upload-preview`,
+      {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const previewData = await previewRes.json().catch(() => ({}))
-      if (!previewRes.ok) {
-        throw new Error(previewData?.error || 'Failed to regenerate admin preview')
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ imageBase64 }),
       }
-    } catch (previewError: unknown) {
-      const previewMessage =
-        previewError instanceof Error ? previewError.message : 'Failed to regenerate admin preview'
+    )
+    const uploadData = await uploadRes.json().catch(() => ({}))
+    if (!uploadRes.ok) {
       throw new Error(
-        `${previewMessage}. تم حفظ التعديلات في Snapshot، لكن توليد صورة المعاينة فشل على السيرفر.`
+        uploadData?.error ||
+          'تم حفظ التعديلات، لكن رفع صورة المعاينة فشل. جرّب مرة أخرى بعد تحميل الخطوط.'
       )
     }
   }

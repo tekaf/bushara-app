@@ -130,6 +130,8 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
 
     return NextResponse.json({
       ok: true,
+      deployTag: process.env.VERCEL_GIT_COMMIT_SHA || 'local',
+      previewMode: process.env.VERCEL === '1' ? 'browser_upload' : 'server_render',
       invite: {
         id: inviteSnap.id,
         title: invite?.title || '',

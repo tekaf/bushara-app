@@ -13,6 +13,7 @@ import type { FinalInvitationSnapshot } from '@/lib/workshop/snapshot'
 import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
 import { ensurePaidInviteWorkshopReady } from '@/lib/admin/ensure-workshop-ready'
 import { isPaidInvite } from '@/lib/admin/workshop-queue'
+import { resolveAdminPreviewUrl } from '@/lib/admin/workshop-queue'
 import { renderFinalPngToStorage } from '@/lib/render/final-png'
 
 export const runtime = 'nodejs'
@@ -92,17 +93,31 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
     }
 
     const templateType = (snapshot?.templateType || 'A') as SnapshotTemplateType
-    const approvedPreviewUrl = await renderFinalPngToStorage({
-      templateId: snapshot.templateId,
-      variant: snapshot.variant || 'whatsapp_1080x1920',
-      fields: (snapshot.fields || {}) as Record<string, unknown>,
-      renderOptions: {
-        layoutB: (snapshot.renderOptions as any)?.layoutB,
-        blockStyleOverrides: (snapshot.renderOptions as any)?.blockStyleOverrides || {},
-        blockPositionOverrides: (snapshot.renderOptions as any)?.blockPositionOverrides || {},
-      },
-      assetBaseUrl: request.nextUrl.origin,
-    })
+    let approvedPreviewUrl = resolveAdminPreviewUrl(invite as Record<string, unknown>, internal as Record<string, unknown>)
+
+    if (!approvedPreviewUrl) {
+      try {
+        approvedPreviewUrl = await renderFinalPngToStorage({
+          templateId: snapshot.templateId,
+          variant: snapshot.variant || 'whatsapp_1080x1920',
+          fields: (snapshot.fields || {}) as Record<string, unknown>,
+          renderOptions: {
+            layoutB: (snapshot.renderOptions as any)?.layoutB,
+            blockStyleOverrides: (snapshot.renderOptions as any)?.blockStyleOverrides || {},
+            blockPositionOverrides: (snapshot.renderOptions as any)?.blockPositionOverrides || {},
+          },
+          assetBaseUrl: request.nextUrl.origin,
+        })
+      } catch {
+        return NextResponse.json(
+          {
+            error:
+              'لا توجد صورة معاينة محفوظة. احفظ التعديلات أولاً (يتم رفع المعاينة من المتصفح) ثم اعتمد.',
+          },
+          { status: 409 }
+        )
+      }
+    }
     await internalRef.set(
       {
         adminPreviewUrl: approvedPreviewUrl,

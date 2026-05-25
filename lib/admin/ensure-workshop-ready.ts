@@ -86,7 +86,8 @@ export async function ensurePaidInviteWorkshopReady(
 
   let adminPreviewUrl = resolveAdminPreviewUrl(invite, internal)
 
-  if (repairPreview && !adminPreviewUrl) {
+  // Preview repair via server Chromium is disabled on Vercel — workshop uploads preview from browser.
+  if (repairPreview && !adminPreviewUrl && process.env.VERCEL !== '1') {
     const snapshot = (internal?.finalInvitationSnapshot || null) as FinalInvitationSnapshot | null
     if (snapshot?.templateId && snapshot?.fields) {
       const url = await renderSnapshotPreview(origin, snapshot)
