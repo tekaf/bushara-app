@@ -91,6 +91,21 @@ npm run check:firebase-admin
 
 ---
 
+## صلاحية الأدمن (إذا ظهر Unauthorized)
+
+أضف بريدك في Vercel (نفس القيمة في المتغيرين):
+
+```env
+ADMIN_EMAILS=your@gmail.com
+NEXT_PUBLIC_ADMIN_EMAILS=your@gmail.com
+```
+
+يمكن عدة إيميلات: `a@x.com,b@y.com`
+
+ثم **Redeploy** وسجّل **خروج + دخول** من جديد.
+
+---
+
 ## ملاحظات
 
 - لا ترفع `.env.local` أو ملف JSON إلى Git

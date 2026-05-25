@@ -62,7 +62,7 @@ export default function AdminWorkshopCenterPage() {
       try {
         setLoading(true)
         setError('')
-        const token = await user.getIdToken()
+        const token = await user.getIdToken(true)
         const q = searchQuery.trim()
         const endpoint = q
           ? `/api/admin/invitations/review?limit=200&q=${encodeURIComponent(q)}`
@@ -170,9 +170,21 @@ export default function AdminWorkshopCenterPage() {
           {error.includes('Firebase Admin') || error.includes('FIREBASE') ? (
             <ul className="mt-3 list-disc space-y-1 pr-5 text-xs leading-relaxed">
               <li>في Vercel أضف: FIREBASE_ADMIN_PROJECT_ID + FIREBASE_ADMIN_CLIENT_EMAIL + FIREBASE_ADMIN_PRIVATE_KEY</li>
-              <li>أو استخدم FIREBASE_SERVICE_ACCOUNT_BASE64 (أوثق في FIREBASE_ADMIN_SETUP.md)</li>
+              <li>أو استخدم FIREBASE_SERVICE_ACCOUNT_BASE64 (راجع FIREBASE_ADMIN_SETUP.md)</li>
               <li>بعد الحفظ: Redeploy للمشروع</li>
               <li>محليًا: npm run check:firebase-admin</li>
+            </ul>
+          ) : error.includes('بريدك غير مضاف') || error.includes('ADMIN_EMAILS') ? (
+            <ul className="mt-3 list-disc space-y-1 pr-5 text-xs leading-relaxed">
+              <li>في Vercel أضف بريدك في: ADMIN_EMAILS و NEXT_PUBLIC_ADMIN_EMAILS (مثال: you@gmail.com)</li>
+              <li>يمكن عدة إيميلات مفصولة بفاصلة</li>
+              <li>بعد الحفظ: Redeploy ثم سجّل خروج وادخل من جديد</li>
+            </ul>
+          ) : error.includes('جلسة الدخول') || error === 'Unauthorized' || error === 'غير مصرح.' ? (
+            <ul className="mt-3 list-disc space-y-1 pr-5 text-xs leading-relaxed">
+              <li>سجّل الخروج ثم ادخل مرة أخرى</li>
+              <li>تأكد أن NEXT_PUBLIC_FIREBASE_PROJECT_ID = bushara-2df7e (نفس مشروع Service Account)</li>
+              <li>تأكد أن بريدك مضاف في ADMIN_EMAILS على Vercel</li>
             </ul>
           ) : null}
         </div>

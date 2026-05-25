@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ADMIN_SDK_USER_ERROR_AR, isAdminSdkError, verifyAdminRequest } from '@/lib/auth/verify-admin-request'
+import { adminAuthErrorToResponse, verifyAdminRequest } from '@/lib/auth/verify-admin-request'
 import { INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
 
 export const runtime = 'nodejs'
@@ -119,16 +119,11 @@ export async function GET(request: NextRequest) {
       .slice(0, limit)
 
     return NextResponse.json({ ok: true, invites })
-  } catch (error: any) {
-    const message = String(error?.message || '')
-    if (message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  } catch (error: unknown) {
+    const mapped = adminAuthErrorToResponse(error)
+    if (mapped.status >= 500) {
+      console.error('[ADMIN_REVIEW_QUEUE] error:', mapped.code, mapped.error)
     }
-    if (isAdminSdkError(message)) {
-      console.error('[ADMIN_REVIEW_QUEUE] admin sdk not configured')
-      return NextResponse.json({ error: ADMIN_SDK_USER_ERROR_AR }, { status: 503 })
-    }
-    console.error('[ADMIN_REVIEW_QUEUE] unexpected error:', message)
-    return NextResponse.json({ error: 'Failed to load review queue' }, { status: 500 })
+    return NextResponse.json({ error: mapped.error, code: mapped.code }, { status: mapped.status })
   }
 }

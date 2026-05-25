@@ -28,7 +28,7 @@ export default function AdminReviewQueuePage() {
       if (!user || !isAdmin) return
       try {
         setLoading(true)
-        const token = await user.getIdToken()
+        const token = await user.getIdToken(true)
         const q = searchQuery.trim()
         const endpoint = q
           ? `/api/admin/invitations/review?limit=120&q=${encodeURIComponent(q)}`
