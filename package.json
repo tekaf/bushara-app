@@ -10,7 +10,7 @@
     "check:firebase-admin": "node --env-file=.env.local scripts/check-firebase-admin.mjs"
   },
   "dependencies": {
-    "@sparticuz/chromium": "^133.0.0",
+    "@sparticuz/chromium-min": "^131.0.0",
     "@stripe/stripe-js": "^2.4.0",
     "date-fns": "^3.3.0",
     "firebase": "^10.12.0",

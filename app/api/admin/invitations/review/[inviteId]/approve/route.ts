@@ -8,11 +8,12 @@ import {
   INVITE_WORKFLOW_STATUS,
   getWorkflowTransitionError,
 } from '@/lib/invitations/workflow'
-import { sanitizeForFirestore, sanitizeRenderFieldsByTemplateType, type SnapshotTemplateType } from '@/lib/workshop/snapshot'
+import { sanitizeForFirestore, type SnapshotTemplateType } from '@/lib/workshop/snapshot'
 import type { FinalInvitationSnapshot } from '@/lib/workshop/snapshot'
 import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
 import { ensurePaidInviteWorkshopReady } from '@/lib/admin/ensure-workshop-ready'
 import { isPaidInvite } from '@/lib/admin/workshop-queue'
+import { renderFinalPngToStorage } from '@/lib/render/final-png'
 
 export const runtime = 'nodejs'
 
@@ -91,33 +92,23 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
     }
 
     const templateType = (snapshot?.templateType || 'A') as SnapshotTemplateType
-    const strictFields = sanitizeRenderFieldsByTemplateType((snapshot?.fields || {}) as any, templateType)
-    const renderResponse = await fetch(`${request.nextUrl.origin}/api/render/final`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        templateId: snapshot.templateId,
-        variant: snapshot.variant || 'whatsapp_1080x1920',
-        fields: strictFields,
-        renderOptions: {
-          layoutB: (snapshot.renderOptions as any)?.layoutB || undefined,
-          blockStyleOverrides: (snapshot.renderOptions as any)?.blockStyleOverrides || {},
-          blockPositionOverrides: (snapshot.renderOptions as any)?.blockPositionOverrides || {},
-        },
-      }),
+    const approvedPreviewUrl = await renderFinalPngToStorage({
+      templateId: snapshot.templateId,
+      variant: snapshot.variant || 'whatsapp_1080x1920',
+      fields: (snapshot.fields || {}) as Record<string, unknown>,
+      renderOptions: {
+        layoutB: (snapshot.renderOptions as any)?.layoutB,
+        blockStyleOverrides: (snapshot.renderOptions as any)?.blockStyleOverrides || {},
+        blockPositionOverrides: (snapshot.renderOptions as any)?.blockPositionOverrides || {},
+      },
+      assetBaseUrl: request.nextUrl.origin,
     })
-    const renderData = await renderResponse.json().catch(() => ({}))
-    if (!renderResponse.ok || !renderData?.url) {
-      return NextResponse.json({ error: renderData?.error || 'Failed to render approved preview' }, { status: 500 })
-    }
-    const approvedPreviewUrl = String(renderData.url || '').trim()
     await internalRef.set(
       {
         adminPreviewUrl: approvedPreviewUrl,
         finalInvitationSnapshot: sanitizeForFirestore({
           ...snapshot,
           templateType,
-          fields: strictFields,
           updatedAt: new Date().toISOString(),
         }),
         updatedAt: FieldValue.serverTimestamp(),

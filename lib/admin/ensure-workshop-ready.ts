@@ -1,11 +1,8 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore'
 import { isPaidInvite, resolveAdminPreviewUrl } from '@/lib/admin/workshop-queue'
 import { INVITE_REVIEW_STATUS, INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
-import {
-  sanitizeRenderFieldsByTemplateType,
-  type FinalInvitationSnapshot,
-  type SnapshotTemplateType,
-} from '@/lib/workshop/snapshot'
+import { renderFinalPngToStorage } from '@/lib/render/final-png'
+import type { FinalInvitationSnapshot } from '@/lib/workshop/snapshot'
 
 export type EnsureWorkshopReadyOptions = {
   origin: string
@@ -26,25 +23,22 @@ async function renderSnapshotPreview(
   origin: string,
   snapshot: FinalInvitationSnapshot
 ): Promise<string | null> {
-  const templateType = (snapshot?.templateType || 'A') as SnapshotTemplateType
-  const strictFields = sanitizeRenderFieldsByTemplateType((snapshot?.fields || {}) as any, templateType)
-  const renderResponse = await fetch(`${origin}/api/render/final`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  try {
+    const url = await renderFinalPngToStorage({
       templateId: snapshot.templateId,
       variant: snapshot.variant || 'whatsapp_1080x1920',
-      fields: strictFields,
+      fields: (snapshot.fields || {}) as Record<string, unknown>,
       renderOptions: {
-        layoutB: (snapshot.renderOptions as any)?.layoutB || undefined,
+        layoutB: (snapshot.renderOptions as any)?.layoutB,
         blockStyleOverrides: (snapshot.renderOptions as any)?.blockStyleOverrides || {},
         blockPositionOverrides: (snapshot.renderOptions as any)?.blockPositionOverrides || {},
       },
-    }),
-  })
-  const renderData = await renderResponse.json().catch(() => ({}))
-  if (!renderResponse.ok || !renderData?.url) return null
-  return String(renderData.url || '').trim()
+      assetBaseUrl: origin,
+    })
+    return url.trim() || null
+  } catch {
+    return null
+  }
 }
 
 /**

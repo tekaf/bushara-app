@@ -7,6 +7,7 @@ import { INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
 import type { FinalInvitationSnapshot } from '@/lib/workshop/snapshot'
 import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
 import { ensurePaidInviteWorkshopReady } from '@/lib/admin/ensure-workshop-ready'
+import { renderFinalPngToStorage } from '@/lib/render/final-png'
 
 export const runtime = 'nodejs'
 
@@ -72,27 +73,17 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
       return NextResponse.json({ error: 'Snapshot is missing. Open workshop first to initialize it.' }, { status: 409 })
     }
 
-    const renderResponse = await fetch(`${request.nextUrl.origin}/api/render/final`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        templateId: snapshot.templateId,
-        variant: 'whatsapp_1080x1920',
-        fields: snapshot.fields,
-        renderOptions: {
-          layoutB: (snapshot?.renderOptions as any)?.layoutB || undefined,
-          blockStyleOverrides: (snapshot?.renderOptions as any)?.blockStyleOverrides || {},
-          blockPositionOverrides: (snapshot?.renderOptions as any)?.blockPositionOverrides || {},
-        },
-      }),
+    const adminPreviewUrl = await renderFinalPngToStorage({
+      templateId: snapshot.templateId,
+      variant: snapshot.variant || 'whatsapp_1080x1920',
+      fields: (snapshot.fields || {}) as Record<string, unknown>,
+      renderOptions: {
+        layoutB: (snapshot?.renderOptions as any)?.layoutB,
+        blockStyleOverrides: (snapshot?.renderOptions as any)?.blockStyleOverrides || {},
+        blockPositionOverrides: (snapshot?.renderOptions as any)?.blockPositionOverrides || {},
+      },
+      assetBaseUrl: request.nextUrl.origin,
     })
-
-    const renderData = await renderResponse.json().catch(() => ({}))
-    if (!renderResponse.ok || !renderData?.url) {
-      return NextResponse.json({ error: renderData?.error || 'Failed to render preview' }, { status: 500 })
-    }
-
-    const adminPreviewUrl = String(renderData.url)
     await adminDb.collection('invitation_internal').doc(inviteId).set(
       {
         adminPreviewUrl,

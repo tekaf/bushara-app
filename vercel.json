@@ -5,7 +5,8 @@
   "framework": "nextjs",
   "regions": ["dub1"],
   "env": {
-    "AWS_LAMBDA_JS_RUNTIME": "nodejs20.x"
+    "AWS_LAMBDA_JS_RUNTIME": "nodejs20.x",
+    "CHROMIUM_REMOTE_PACK_URL": "https://github.com/Sparticuz/chromium/releases/download/v131.0.0/chromium-v131.0.0-pack.tar"
   },
   "functions": {
     "app/api/render/final/route.ts": {

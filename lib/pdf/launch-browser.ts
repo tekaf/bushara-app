@@ -2,8 +2,13 @@ import './chromium-env'
 
 import { existsSync, rmSync } from 'fs'
 import path from 'path'
-import chromium from '@sparticuz/chromium'
+import chromium from '@sparticuz/chromium-min'
 import puppeteer, { type Browser } from 'puppeteer-core'
+
+/** Full Chromium pack with shared libs (libnss3, etc.) for Vercel/Lambda. */
+const CHROMIUM_PACK_URL =
+  process.env.CHROMIUM_REMOTE_PACK_URL ||
+  'https://github.com/Sparticuz/chromium/releases/download/v131.0.0/chromium-v131.0.0-pack.tar'
 
 let cachedBrowser: Browser | null = null
 
@@ -26,24 +31,31 @@ function chromiumSharedLibsReady() {
   return existsSync('/tmp/al2023/lib/libnss3.so') || existsSync('/tmp/al2/lib/libnss3.so')
 }
 
-function clearStaleChromiumArtifacts() {
-  if (!existsSync('/tmp/chromium')) return
-  if (chromiumSharedLibsReady()) return
-  try {
-    rmSync('/tmp/chromium', { force: true })
-    rmSync('/tmp/al2023', { recursive: true, force: true })
-    rmSync('/tmp/al2', { recursive: true, force: true })
-  } catch {
-    // ignore cleanup errors
+/** Wipe cached binaries so sparticuz re-extracts libs (fixes libnss3 on warm lambdas). */
+function resetServerlessChromiumCache() {
+  const targets = ['/tmp/chromium', '/tmp/al2023', '/tmp/al2', '/tmp/fonts', '/tmp/chromium-pack']
+  for (const target of targets) {
+    try {
+      rmSync(target, { recursive: true, force: true })
+    } catch {
+      // ignore
+    }
   }
 }
 
 function prepareServerlessChromiumEnv() {
   if (!isServerlessRuntime()) return
-  clearStaleChromiumArtifacts()
+  resetServerlessChromiumCache()
   appendLdLibraryPath('/tmp/al2023/lib')
   appendLdLibraryPath('/tmp/al2/lib')
   process.env.FONTCONFIG_PATH ??= '/tmp/fonts'
+}
+
+async function resolveChromiumExecutablePath(): Promise<string> {
+  if (isServerlessRuntime()) {
+    return chromium.executablePath(CHROMIUM_PACK_URL)
+  }
+  return chromium.executablePath()
 }
 
 export async function launchServerlessBrowser(): Promise<Browser> {
@@ -54,14 +66,14 @@ export async function launchServerlessBrowser(): Promise<Browser> {
   prepareServerlessChromiumEnv()
 
   try {
-    const executablePath = await chromium.executablePath()
+    const executablePath = await resolveChromiumExecutablePath()
     appendLdLibraryPath('/tmp/al2023/lib')
     appendLdLibraryPath('/tmp/al2/lib')
     appendLdLibraryPath(path.dirname(executablePath))
 
     if (isServerlessRuntime() && !chromiumSharedLibsReady()) {
       throw new Error(
-        'Chromium libs missing on serverless. Add AWS_LAMBDA_JS_RUNTIME=nodejs20.x in Vercel env and redeploy.'
+        'Chromium shared libraries missing after extract. Set AWS_LAMBDA_JS_RUNTIME=nodejs20.x and redeploy.'
       )
     }
 
@@ -79,7 +91,7 @@ export async function launchServerlessBrowser(): Promise<Browser> {
   } catch (chromiumError: unknown) {
     const message = chromiumError instanceof Error ? chromiumError.message : String(chromiumError)
     if (isServerlessRuntime()) {
-      throw new Error(`Failed to launch serverless Chromium: ${message}`)
+      throw new Error(`Failed to launch serverless Chromium (puppeteer): ${message}`)
     }
 
     cachedBrowser = await puppeteer.launch({ headless: true })
@@ -92,7 +104,7 @@ export async function closeServerlessBrowser(browser: Browser | null | undefined
   try {
     await browser.close()
   } catch {
-    // ignore close errors on frozen serverless instances
+    // ignore
   }
   if (isServerlessRuntime() || cachedBrowser === browser) {
     cachedBrowser = null

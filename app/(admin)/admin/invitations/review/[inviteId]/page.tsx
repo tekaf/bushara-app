@@ -560,13 +560,21 @@ export default function AdminWorkshopPage() {
       if (!editRes.ok) throw new Error(editData?.error || 'Failed to save invite edits')
     }
 
-    const previewRes = await fetch(`/api/admin/invitations/review/${encodeURIComponent(inviteId)}/regenerate-preview`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    const previewData = await previewRes.json().catch(() => ({}))
-    if (!previewRes.ok) {
-      throw new Error(previewData?.error || 'Failed to regenerate admin preview')
+    try {
+      const previewRes = await fetch(`/api/admin/invitations/review/${encodeURIComponent(inviteId)}/regenerate-preview`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const previewData = await previewRes.json().catch(() => ({}))
+      if (!previewRes.ok) {
+        throw new Error(previewData?.error || 'Failed to regenerate admin preview')
+      }
+    } catch (previewError: unknown) {
+      const previewMessage =
+        previewError instanceof Error ? previewError.message : 'Failed to regenerate admin preview'
+      throw new Error(
+        `${previewMessage}. تم حفظ التعديلات في Snapshot، لكن توليد صورة المعاينة فشل على السيرفر.`
+      )
     }
   }
 

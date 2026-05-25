@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    serverComponentsExternalPackages: ['puppeteer-core', '@sparticuz/chromium', 'sharp'],
+    serverComponentsExternalPackages: ['puppeteer-core', '@sparticuz/chromium-min', 'sharp'],
   },
   images: {
     domains: ['firebasestorage.googleapis.com', 'storage.googleapis.com'],
@@ -20,7 +20,7 @@ const nextConfig = {
     if (isServer) {
       config.externals.push({
         'puppeteer-core': 'commonjs puppeteer-core',
-        '@sparticuz/chromium': 'commonjs @sparticuz/chromium',
+        '@sparticuz/chromium-min': 'commonjs @sparticuz/chromium-min',
       })
     }
     return config
