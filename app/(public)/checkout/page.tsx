@@ -11,6 +11,14 @@ import { parsePackageFromParams } from '@/lib/flow/package-selection'
 import { useAuth } from '@/lib/auth/context'
 import { auth, db } from '@/lib/firebase/config'
 import { INVITE_REVIEW_STATUS, INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
+import { sanitizeForFirestore } from '@/lib/firebase/sanitize-doc'
+
+const TERMINAL_WORKFLOW_STATUSES = new Set<string>([
+  INVITE_WORKFLOW_STATUS.SENT,
+  INVITE_WORKFLOW_STATUS.PARTIALLY_SENT,
+  INVITE_WORKFLOW_STATUS.SCHEDULED,
+  INVITE_WORKFLOW_STATUS.SENDING,
+])
 
 type CheckoutDraft = {
   templateId: string
@@ -600,7 +608,19 @@ export default function CheckoutPage() {
     setPaying(true)
     try {
       const inviteStorageKey = `bushara_active_invite_id:${draft.templateId}`
-      const existingInviteId = window.sessionStorage.getItem(inviteStorageKey) || ''
+      let existingInviteId = window.sessionStorage.getItem(inviteStorageKey) || ''
+      if (existingInviteId) {
+        try {
+          const existingSnap = await getDoc(doc(db, 'invites', existingInviteId))
+          const existingWorkflow = String(existingSnap.data()?.workflowStatus || '')
+          if (existingSnap.exists() && TERMINAL_WORKFLOW_STATUSES.has(existingWorkflow)) {
+            existingInviteId = ''
+            window.sessionStorage.removeItem(inviteStorageKey)
+          }
+        } catch {
+          // Keep flow resilient if read fails.
+        }
+      }
       let inviteId = existingInviteId
       let inviteImageUrl = draft.finalUrl || draft.previewUrl || ''
       const normalizedFormData = normalizeFormDataForInvite(draft.formData || {}, draft.selectedOccasion || '')
@@ -670,6 +690,7 @@ export default function CheckoutPage() {
           finalUrl: draft.finalUrl || '',
           previewUrl: draft.previewUrl || '',
           inviteImageUrl,
+          adminPreviewUrl: inviteImageUrl,
           orderNumber: displayOrderCode,
           orderStatus: 'pending_review',
           dispatchMode: 'manual',
@@ -692,11 +713,7 @@ export default function CheckoutPage() {
           paidAt: new Date(),
           updatedAt: new Date(),
         }
-        await setDoc(
-          doc(db, 'invites', existingInviteId),
-          invitePayload,
-          { merge: true }
-        )
+        await setDoc(doc(db, 'invites', existingInviteId), sanitizeForFirestore(invitePayload), { merge: true })
       } else {
         const invitePayload = {
           ownerId: user.uid,
@@ -741,6 +758,7 @@ export default function CheckoutPage() {
           finalUrl: draft.finalUrl || '',
           previewUrl: draft.previewUrl || '',
           inviteImageUrl,
+          adminPreviewUrl: inviteImageUrl,
           orderNumber: displayOrderCode,
           orderStatus: 'pending_review',
           dispatchMode: 'manual',
@@ -764,9 +782,7 @@ export default function CheckoutPage() {
           createdAt: new Date(),
           updatedAt: new Date(),
         }
-        const inviteRef = await addDoc(collection(db, 'invites'), {
-          ...invitePayload,
-        })
+        const inviteRef = await addDoc(collection(db, 'invites'), sanitizeForFirestore(invitePayload))
         inviteId = inviteRef.id
         window.sessionStorage.setItem(inviteStorageKey, inviteId)
       }
@@ -803,13 +819,22 @@ export default function CheckoutPage() {
         })
       )
       const idToken = await user.getIdToken()
+      if (!inviteImageUrl) {
+        throw new Error('تعذر تجهيز صورة الدعوة. ارجع للتصميم ثم أعد المحاولة.')
+      }
+
       const workshopResponse = await fetch('/api/workshop/enter', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ inviteId }),
+        body: JSON.stringify({
+          inviteId,
+          previewUrl: inviteImageUrl,
+          adminPreviewUrl: inviteImageUrl,
+          inviteImageUrl,
+        }),
       })
       const workshopData = await workshopResponse.json().catch(() => ({}))
       if (!workshopResponse.ok) {
@@ -818,8 +843,12 @@ export default function CheckoutPage() {
           workshopErrorText.includes('default credentials') ||
           workshopErrorText.includes('Project Id') ||
           workshopErrorText.includes('Admin SDK not configured')
-        if (!isCredentialsIssue) {
+        const isMissingPreview = workshopErrorText.toLowerCase().includes('preview')
+        if (!isCredentialsIssue && !isMissingPreview) {
           throw new Error(workshopData?.error || 'تعذر إكمال معالجة الطلب بعد الدفع')
+        }
+        if (isMissingPreview) {
+          throw new Error('تعذر تجهيز معاينة الدعوة للمراجعة. حاول مرة أخرى من صفحة التصميم.')
         }
         await setDoc(
           doc(db, 'invites', inviteId),
@@ -850,9 +879,15 @@ export default function CheckoutPage() {
       )
       handleClosePhoneVerifyModal()
       router.push(`/dashboard/invites/${encodeURIComponent(inviteId)}/workshop-status`)
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to create invite after payment:', error)
-      alert('حدث خطأ أثناء إنشاء الدعوة. حاول مرة أخرى.')
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' && error && 'message' in error
+            ? String((error as { message?: string }).message || '')
+            : ''
+      alert(message || 'حدث خطأ أثناء إنشاء الدعوة. حاول مرة أخرى.')
     } finally {
       setPaying(false)
     }

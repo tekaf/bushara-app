@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}))
     const inviteId = String(body?.inviteId || '').trim()
+    const previewUrlFromClient = String(body?.previewUrl || body?.adminPreviewUrl || body?.inviteImageUrl || '').trim()
     if (!inviteId) return NextResponse.json({ error: 'Missing inviteId' }, { status: 400 })
 
     const inviteRef = adminDb.collection('invites').doc(inviteId)
@@ -48,13 +49,24 @@ export async function POST(request: NextRequest) {
     const orderFoundation = await ensureInviteOrderFoundation(adminDb, inviteId)
     const currentWorkflow = String(invite?.workflowStatus || '')
     const alreadyInWorkshop = currentWorkflow === INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW
+    const paymentStatus = String(invite?.paymentStatus || '').toLowerCase()
+    const isPaid = paymentStatus === 'paid' || String(invite?.status || '').toLowerCase() === 'paid'
     const transitionError = getWorkflowTransitionError(currentWorkflow, INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW)
-    if (!alreadyInWorkshop && transitionError) {
+    if (!alreadyInWorkshop && transitionError && !isPaid) {
       return NextResponse.json({ error: transitionError }, { status: 409 })
     }
 
+    const internalSnap = await adminDb.collection('invitation_internal').doc(inviteId).get()
+    const internal = internalSnap.exists ? (internalSnap.data() as Record<string, unknown>) : {}
+
     const adminPreviewUrl = String(
-      invite?.adminPreviewUrl || invite?.inviteImageUrl || invite?.finalUrl || invite?.previewUrl || ''
+      previewUrlFromClient ||
+        internal?.adminPreviewUrl ||
+        invite?.adminPreviewUrl ||
+        invite?.inviteImageUrl ||
+        invite?.finalUrl ||
+        invite?.previewUrl ||
+        ''
     ).trim()
     if (!adminPreviewUrl) {
       return NextResponse.json(
