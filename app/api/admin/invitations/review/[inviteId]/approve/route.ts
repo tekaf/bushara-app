@@ -11,6 +11,8 @@ import {
 import { sanitizeForFirestore, sanitizeRenderFieldsByTemplateType, type SnapshotTemplateType } from '@/lib/workshop/snapshot'
 import type { FinalInvitationSnapshot } from '@/lib/workshop/snapshot'
 import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
+import { ensurePaidInviteWorkshopReady } from '@/lib/admin/ensure-workshop-ready'
+import { isPaidInvite } from '@/lib/admin/workshop-queue'
 
 export const runtime = 'nodejs'
 
@@ -57,11 +59,19 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
     const inviteSnap = await inviteRef.get()
     if (!inviteSnap.exists) return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
     await ensureInviteOrderFoundation(adminDb, inviteId)
-    const invite = inviteSnap.data() as any
-    const currentWorkflow = String(invite?.workflowStatus || '')
+
+    const ready = await ensurePaidInviteWorkshopReady(adminDb, inviteId, {
+      origin: request.nextUrl.origin,
+    })
+    const invite = ready.invite as any
+    const currentWorkflow = String(ready.workflowStatus || invite?.workflowStatus || '')
     if (!APPROVAL_ALLOWED_STATUSES.has(currentWorkflow)) {
+      const paidHint =
+        currentWorkflow === INVITE_WORKFLOW_STATUS.AWAITING_PAYMENT && isPaidInvite(invite)
+          ? ' Payment is marked paid but workshop transition failed.'
+          : ''
       return NextResponse.json(
-        { error: `Approval is not allowed for workflow status: ${currentWorkflow || 'unknown'}.` },
+        { error: `Approval is not allowed for workflow status: ${currentWorkflow || 'unknown'}.${paidHint}` },
         { status: 409 }
       )
     }
@@ -74,8 +84,7 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
       return NextResponse.json({ error: transitionError }, { status: 409 })
     }
     const internalRef = adminDb.collection('invitation_internal').doc(inviteId)
-    const internalSnap = await internalRef.get()
-    const internal = internalSnap.exists ? (internalSnap.data() as any) : {}
+    const internal = ready.internal as any
     const snapshot = (internal?.finalInvitationSnapshot || null) as FinalInvitationSnapshot | null
     if (!snapshot?.templateId || !snapshot?.fields) {
       return NextResponse.json({ error: 'Snapshot is missing. Open workshop first.' }, { status: 409 })

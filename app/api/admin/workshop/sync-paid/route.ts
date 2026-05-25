@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { FieldValue } from 'firebase-admin/firestore'
 import { adminAuthErrorToResponse, verifyAdminRequest } from '@/lib/auth/verify-admin-request'
-import { isPaidInvite, isVisibleInWorkshopQueue, resolveAdminPreviewUrl } from '@/lib/admin/workshop-queue'
-import { INVITE_REVIEW_STATUS, INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
+import { isPaidInvite } from '@/lib/admin/workshop-queue'
+import { ensurePaidInviteWorkshopReady } from '@/lib/admin/ensure-workshop-ready'
 
 export const runtime = 'nodejs'
 
@@ -36,40 +35,19 @@ export async function POST(request: NextRequest) {
         skipped.push(doc.id)
         continue
       }
-      if (isVisibleInWorkshopQueue(row) && row.workflowStatus === INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW) {
+      const beforeWorkflow = String(row?.workflowStatus || '')
+      const ready = await ensurePaidInviteWorkshopReady(adminDb, doc.id, {
+        origin: request.nextUrl.origin,
+      })
+      if (!ready.adminPreviewUrl) {
         skipped.push(doc.id)
         continue
       }
-
-      const internalSnap = await adminDb.collection('invitation_internal').doc(doc.id).get()
-      const internal = internalSnap.exists ? (internalSnap.data() as Record<string, unknown>) : {}
-      const adminPreviewUrl = resolveAdminPreviewUrl(row, internal)
-      if (!adminPreviewUrl) {
+      if (ready.repairedWorkflow || ready.repairedPreview || beforeWorkflow !== ready.workflowStatus) {
+        fixed.push(doc.id)
+      } else {
         skipped.push(doc.id)
-        continue
       }
-
-      await adminDb.collection('invitation_internal').doc(doc.id).set(
-        {
-          adminPreviewUrl,
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      )
-
-      await adminDb.collection('invites').doc(doc.id).set(
-        {
-          workflowStatus: INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW,
-          reviewStatus: INVITE_REVIEW_STATUS.PENDING,
-          paymentStatus: 'paid',
-          status: 'paid',
-          workshopEnteredAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      )
-
-      fixed.push(doc.id)
     }
 
     return NextResponse.json({ ok: true, fixedCount: fixed.length, fixed, skippedCount: skipped.length })

@@ -14,7 +14,9 @@ export const VISIBLE_WORKSHOP_STATUSES = [
 export function isPaidInvite(row: Record<string, unknown>): boolean {
   const paymentStatus = String(row?.paymentStatus || '').toLowerCase()
   const status = String(row?.status || '').toLowerCase()
-  return paymentStatus === 'paid' || status === 'paid'
+  if (paymentStatus === 'paid' || status === 'paid') return true
+  if (row?.inviteLockedAfterPayment === true) return true
+  return false
 }
 
 /** Show invite in admin workshop queue. */

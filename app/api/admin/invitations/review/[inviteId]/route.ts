@@ -3,6 +3,7 @@ import { getAuth } from 'firebase-admin/auth'
 import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
 import { isAdminEmailServer } from '@/lib/auth/admin-access'
 import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
+import { ensurePaidInviteWorkshopReady } from '@/lib/admin/ensure-workshop-ready'
 
 export const runtime = 'nodejs'
 
@@ -69,7 +70,11 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
     const inviteSnap = await inviteRef.get()
     if (!inviteSnap.exists) return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
     await ensureInviteOrderFoundation(adminDb, inviteId)
-    const invite = inviteSnap.data() as any
+
+    const ready = await ensurePaidInviteWorkshopReady(adminDb, inviteId, {
+      origin: request.nextUrl.origin,
+    })
+    const invite = ready.invite as any
 
     let reviewSnap: FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>
     try {
@@ -114,10 +119,12 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
       }
     }
 
-    const internalSnap = await adminDb.collection('invitation_internal').doc(inviteId).get()
-    const internal = internalSnap.exists ? (internalSnap.data() as any) : {}
     const adminPreviewUrl = String(
-      internal?.adminPreviewUrl || invite?.previewUrl || invite?.inviteImageUrl || invite?.finalUrl || ''
+      ready.adminPreviewUrl ||
+        invite?.previewUrl ||
+        invite?.inviteImageUrl ||
+        invite?.finalUrl ||
+        ''
     ).trim()
 
     return NextResponse.json({

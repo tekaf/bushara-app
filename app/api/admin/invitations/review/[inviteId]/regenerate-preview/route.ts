@@ -6,6 +6,7 @@ import { isAdminEmailServer } from '@/lib/auth/admin-access'
 import { INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
 import type { FinalInvitationSnapshot } from '@/lib/workshop/snapshot'
 import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
+import { ensurePaidInviteWorkshopReady } from '@/lib/admin/ensure-workshop-ready'
 
 export const runtime = 'nodejs'
 
@@ -49,9 +50,14 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
     const inviteSnap = await inviteRef.get()
     if (!inviteSnap.exists) return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
     await ensureInviteOrderFoundation(adminDb, inviteId)
-    const invite = inviteSnap.data() as any
 
-    const workflowStatus = String(invite?.workflowStatus || '').trim()
+    const ready = await ensurePaidInviteWorkshopReady(adminDb, inviteId, {
+      origin: request.nextUrl.origin,
+      repairPreview: false,
+    })
+    const invite = ready.invite as any
+
+    const workflowStatus = String(ready.workflowStatus || invite?.workflowStatus || '').trim()
     if (!PREVIEW_REGENERATE_ALLOWED_STATUSES.has(workflowStatus)) {
       return NextResponse.json(
         { error: `Preview regeneration is not allowed for workflow status: ${workflowStatus || 'unknown'}.` },

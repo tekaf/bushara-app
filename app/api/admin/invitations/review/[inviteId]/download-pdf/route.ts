@@ -5,6 +5,7 @@ import { isAdminEmailServer } from '@/lib/auth/admin-access'
 import chromium from '@sparticuz/chromium'
 import playwright from 'playwright-core'
 import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
+import { ensurePaidInviteWorkshopReady } from '@/lib/admin/ensure-workshop-ready'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -67,12 +68,17 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
     const inviteSnap = await adminDb.collection('invites').doc(inviteId).get()
     if (!inviteSnap.exists) return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
     await ensureInviteOrderFoundation(adminDb, inviteId)
-    const invite = inviteSnap.data() as any
 
-    const internalSnap = await adminDb.collection('invitation_internal').doc(inviteId).get()
-    const internal = internalSnap.exists ? (internalSnap.data() as any) : {}
+    const ready = await ensurePaidInviteWorkshopReady(adminDb, inviteId, {
+      origin: request.nextUrl.origin,
+    })
+    const invite = ready.invite as any
     const imageUrl = String(
-      internal?.adminPreviewUrl || invite?.inviteImageUrl || invite?.finalUrl || invite?.previewUrl || ''
+      ready.adminPreviewUrl ||
+        invite?.inviteImageUrl ||
+        invite?.finalUrl ||
+        invite?.previewUrl ||
+        ''
     ).trim()
     if (!imageUrl) {
       return NextResponse.json({ error: 'No invite preview available for PDF export' }, { status: 409 })
