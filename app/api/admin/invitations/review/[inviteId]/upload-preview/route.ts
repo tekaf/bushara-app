@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { FieldValue } from 'firebase-admin/firestore'
 import { getAuth } from 'firebase-admin/auth'
-import { getAdminApp, getAdminBucket, getAdminFirestore } from '@/lib/firebase/admin'
+import { getAdminApp, getAdminFirestore } from '@/lib/firebase/admin'
 import { isAdminEmailServer } from '@/lib/auth/admin-access'
+import { uploadWorkshopPreviewPng } from '@/lib/admin/upload-workshop-preview'
 import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
 
 export const runtime = 'nodejs'
@@ -35,12 +35,6 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
       return NextResponse.json({ error: 'Missing imageBase64 preview payload' }, { status: 400 })
     }
 
-    const base64Data = imageBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '')
-    const pngBuffer = Buffer.from(base64Data, 'base64')
-    if (!pngBuffer.length) {
-      return NextResponse.json({ error: 'Invalid preview image data' }, { status: 400 })
-    }
-
     const adminDb = getAdminFirestore()
     if (!adminDb) return NextResponse.json({ error: 'Admin SDK not configured' }, { status: 500 })
 
@@ -48,37 +42,20 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
     if (!inviteSnap.exists) return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
     await ensureInviteOrderFoundation(adminDb, inviteId)
 
-    const bucket = getAdminBucket()
-    if (!bucket) return NextResponse.json({ error: 'Storage not configured' }, { status: 500 })
-
-    const fileName = `workshop-previews/${inviteId}/${Date.now()}.png`
-    const fileRef = bucket.file(fileName)
-    await fileRef.save(pngBuffer, { metadata: { contentType: 'image/png' } })
-
-    try {
-      await fileRef.makePublic()
-    } catch {
-      // ignore if bucket uses uniform access only
+    const base64Data = imageBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '')
+    const pngBuffer = Buffer.from(base64Data, 'base64')
+    if (!pngBuffer.length) {
+      return NextResponse.json({ error: 'Invalid preview image data' }, { status: 400 })
     }
 
-    const adminPreviewUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`
-
-    await adminDb.collection('invitation_internal').doc(inviteId).set(
-      {
-        adminPreviewUrl,
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    )
-
-    await adminDb.collection('invitation_reviews').add({
+    const adminPreviewUrl = await uploadWorkshopPreviewPng(
+      adminDb,
       inviteId,
-      action: 'admin_preview_uploaded',
-      notes: 'Workshop preview captured in browser and uploaded (no server Chromium).',
-      createdAt: FieldValue.serverTimestamp(),
-      createdBy: adminUid,
-      actorRole: 'admin',
-    })
+      pngBuffer,
+      adminUid,
+      'admin_preview_uploaded',
+      'Workshop preview captured in browser and uploaded.'
+    )
 
     return NextResponse.json({
       ok: true,

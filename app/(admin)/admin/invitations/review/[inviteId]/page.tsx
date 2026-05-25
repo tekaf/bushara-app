@@ -583,18 +583,18 @@ export default function AdminWorkshopPage() {
     }
 
     const imageBase64 = await captureIframePreviewBase64()
-    const uploadRes = await fetch(
-      `/api/admin/invitations/review/${encodeURIComponent(inviteId)}/upload-preview`,
+    const previewRes = await fetch(
+      `/api/admin/invitations/review/${encodeURIComponent(inviteId)}/regenerate-preview`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ imageBase64 }),
       }
     )
-    const uploadData = await uploadRes.json().catch(() => ({}))
-    if (!uploadRes.ok) {
+    const previewData = await previewRes.json().catch(() => ({}))
+    if (!previewRes.ok) {
       throw new Error(
-        uploadData?.error ||
+        previewData?.error ||
           'تم حفظ التعديلات، لكن رفع صورة المعاينة فشل. جرّب مرة أخرى بعد تحميل الخطوط.'
       )
     }

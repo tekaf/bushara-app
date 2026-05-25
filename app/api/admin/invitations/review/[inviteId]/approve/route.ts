@@ -64,6 +64,7 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
 
     const ready = await ensurePaidInviteWorkshopReady(adminDb, inviteId, {
       origin: request.nextUrl.origin,
+      repairPreview: false,
     })
     const invite = ready.invite as any
     const currentWorkflow = String(ready.workflowStatus || invite?.workflowStatus || '')
@@ -96,6 +97,17 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
     let approvedPreviewUrl = resolveAdminPreviewUrl(invite as Record<string, unknown>, internal as Record<string, unknown>)
 
     if (!approvedPreviewUrl) {
+      if (process.env.VERCEL === '1') {
+        return NextResponse.json(
+          {
+            error:
+              'لا توجد صورة معاينة. اضغط «حفظ» أولاً لرفع المعاينة من المتصفح، ثم اعتمد.',
+            code: 'USE_BROWSER_UPLOAD',
+            deployTag: process.env.VERCEL_GIT_COMMIT_SHA || 'unknown',
+          },
+          { status: 409 }
+        )
+      }
       try {
         approvedPreviewUrl = await renderFinalPngToStorage({
           templateId: snapshot.templateId,
@@ -112,7 +124,7 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
         return NextResponse.json(
           {
             error:
-              'لا توجد صورة معاينة محفوظة. احفظ التعديلات أولاً (يتم رفع المعاينة من المتصفح) ثم اعتمد.',
+              'لا توجد صورة معاينة محفوظة. احفظ التعديلات أولاً ثم اعتمد.',
           },
           { status: 409 }
         )
