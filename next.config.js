@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    serverComponentsExternalPackages: ['playwright-core', '@sparticuz/chromium', 'sharp'],
+  },
   images: {
     domains: ['firebasestorage.googleapis.com', 'storage.googleapis.com'],
   },

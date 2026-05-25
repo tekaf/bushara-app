@@ -4,47 +4,14 @@ import type { Template } from '@/lib/firebase/types'
 import { getPreset } from '@/lib/template-presets/loader'
 import { generateHTML, type RenderFields } from '@/lib/render/engine'
 import { formatDateForInvitation } from '@/lib/render/date-format'
-import chromium from '@sparticuz/chromium'
-import playwright from 'playwright-core'
+import { launchServerlessBrowser } from '@/lib/pdf/launch-browser'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
 
-// Cache browser instance
-let browser: any = null
-
 async function getBrowser() {
-  if (browser) return browser
-
-  try {
-    // Try to use chromium (for production/Vercel)
-    const graphicsModeControl = (chromium as any).setGraphicsMode
-    if (typeof graphicsModeControl === 'function') {
-      graphicsModeControl(false)
-    } else if (typeof graphicsModeControl === 'boolean') {
-      ;(chromium as any).setGraphicsMode = false
-    }
-    const chromiumHeadless = chromium.headless === 'new' ? true : chromium.headless
-    browser = await playwright.chromium.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
-      headless: chromiumHeadless,
-    })
-    console.log('✅ [RENDER] Browser launched with Chromium')
-  } catch (chromiumError: any) {
-    console.warn('⚠️ [RENDER] Chromium failed, trying system browser:', chromiumError.message)
-    // Fallback to system browser (for local development)
-    try {
-      browser = await playwright.chromium.launch({
-        headless: true,
-      })
-      console.log('✅ [RENDER] Browser launched with system Chromium')
-    } catch (systemError: any) {
-      console.error('❌ [RENDER] Failed to launch browser:', systemError.message)
-      throw new Error(`Failed to launch browser: ${systemError.message}`)
-    }
-  }
-
+  const browser = await launchServerlessBrowser()
+  console.log('✅ [RENDER] Browser launched')
   return browser
 }
 
@@ -187,14 +154,11 @@ export async function POST(request: NextRequest) {
     const browserInstance = await getBrowser()
     console.log('✅ [RENDER] Browser launched')
     
-    // HARD-FIX: Exact viewport 1080x1920, deviceScaleFactor=1, no scaling
-    const page = await browserInstance.newPage({
-      viewport: { 
-        width: 1080, 
-        height: 1920,
-        deviceScaleFactor: 2,
-      },
+    const context = await browserInstance.newContext({
+      viewport: { width: 1080, height: 1920 },
+      deviceScaleFactor: 2,
     })
+    const page = await context.newPage()
 
     console.log('📤 [RENDER] Setting page content...')
     await page.setContent(html, { waitUntil: 'networkidle' })
@@ -215,6 +179,7 @@ export async function POST(request: NextRequest) {
     console.log('✅ [RENDER] Screenshot taken, size:', (screenshot as Buffer).length, 'bytes')
 
     await page.close()
+    await context.close()
 
     // Upload to Storage using Admin SDK
     console.log('📤 [RENDER] Uploading to Storage...')

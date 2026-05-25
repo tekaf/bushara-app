@@ -1,5 +1,4 @@
-import chromium from '@sparticuz/chromium'
-import playwright from 'playwright-core'
+import { launchServerlessBrowser } from '@/lib/pdf/launch-browser'
 
 const VIEWPORT_WIDTH = 1080
 const VIEWPORT_HEIGHT = 1920
@@ -20,26 +19,7 @@ function getPngDimensions(buffer: Buffer) {
 }
 
 async function launchBrowser() {
-  try {
-    const graphicsModeControl = (chromium as any).setGraphicsMode
-    if (typeof graphicsModeControl === 'function') {
-      graphicsModeControl(false)
-    } else if (typeof graphicsModeControl === 'boolean') {
-      ;(chromium as any).setGraphicsMode = false
-    }
-    const chromiumHeadless = chromium.headless === 'new' ? true : chromium.headless
-    return await playwright.chromium.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
-      headless: chromiumHeadless,
-    })
-  } catch (chromiumError: any) {
-    console.warn(
-      '⚠️ [PDF->PNG] Chromium bundle failed, falling back to system browser:',
-      chromiumError?.message
-    )
-    return await playwright.chromium.launch({ headless: true })
-  }
+  return launchServerlessBrowser()
 }
 
 async function renderPdfBufferWithPdfJs(context: any, pdfBuffer: Buffer) {
