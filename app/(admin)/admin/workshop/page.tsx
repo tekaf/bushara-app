@@ -63,6 +63,13 @@ export default function AdminWorkshopCenterPage() {
         setLoading(true)
         setError('')
         const token = await user.getIdToken(true)
+
+        // Fix paid invites stuck before server workshop enter.
+        await fetch('/api/admin/workshop/sync-paid?limit=80', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => null)
+
         const q = searchQuery.trim()
         const endpoint = q
           ? `/api/admin/invitations/review?limit=200&q=${encodeURIComponent(q)}`
@@ -90,7 +97,11 @@ export default function AdminWorkshopCenterPage() {
       if (statusFilter === 'rejected') {
         rows = rows.filter((row) => row.reviewStatus === 'changes_requested')
       } else if (statusFilter === 'under_review') {
-        rows = rows.filter((row) => row.workflowStatus === INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW)
+        rows = rows.filter(
+          (row) =>
+            row.workflowStatus === INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW ||
+            row.workflowStatus === INVITE_WORKFLOW_STATUS.AWAITING_PAYMENT
+        )
       } else {
         rows = rows.filter((row) => row.workflowStatus === statusFilter)
       }

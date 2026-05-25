@@ -703,9 +703,10 @@ export default function CheckoutPage() {
           customerPhoneLocal: effectivePhoneLocal,
           customerPhoneVerified: true,
           customerPhoneVerifiedAt: new Date(),
-          workflowStatus: INVITE_WORKFLOW_STATUS.AWAITING_PAYMENT,
+          workflowStatus: INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW,
           reviewStatus: INVITE_REVIEW_STATUS.PENDING,
           adminNotificationStatus: 'pending',
+          workshopEnteredAt: new Date(),
           scheduledSendAt: null,
           timezone: 'Asia/Riyadh',
           sendStatusSummary: { total: 0, pending: 0, sent: 0, failed: 0 },
@@ -771,9 +772,10 @@ export default function CheckoutPage() {
           customerPhoneLocal: effectivePhoneLocal,
           customerPhoneVerified: true,
           customerPhoneVerifiedAt: new Date(),
-          workflowStatus: INVITE_WORKFLOW_STATUS.AWAITING_PAYMENT,
+          workflowStatus: INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW,
           reviewStatus: INVITE_REVIEW_STATUS.PENDING,
           adminNotificationStatus: 'pending',
+          workshopEnteredAt: new Date(),
           scheduledSendAt: null,
           timezone: 'Asia/Riyadh',
           sendStatusSummary: { total: 0, pending: 0, sent: 0, failed: 0 },
@@ -852,16 +854,21 @@ export default function CheckoutPage() {
         }
         await setDoc(
           doc(db, 'invites', inviteId),
-          {
+          sanitizeForFirestore({
+            workflowStatus: INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW,
+            reviewStatus: INVITE_REVIEW_STATUS.PENDING,
+            paymentStatus: 'paid',
+            status: 'paid',
+            workshopEnteredAt: new Date(),
+            inviteImageUrl,
+            adminPreviewUrl: inviteImageUrl,
             adminNotificationStatus: 'pending',
-            adminNotificationError: workshopErrorText || 'workshop_enter_failed',
+            adminNotificationError: workshopErrorText || 'workshop_enter_pending_server',
             updatedAt: new Date(),
-          },
+          }),
           { merge: true }
         )
-        console.warn(
-          '[CHECKOUT] workshop enter skipped due missing admin credentials, continuing local flow'
-        )
+        console.warn('[CHECKOUT] workshop enter skipped on server; invite queued locally for admin review')
       } else {
         await setDoc(
           doc(db, 'invites', inviteId),

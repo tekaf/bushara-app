@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminAuthErrorToResponse, verifyAdminRequest } from '@/lib/auth/verify-admin-request'
-import { INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
+import {
+  isVisibleInWorkshopQueue,
+  resolveAdminPreviewUrl,
+  VISIBLE_WORKSHOP_STATUSES,
+} from '@/lib/admin/workshop-queue'
 
 export const runtime = 'nodejs'
-
-const VISIBLE_WORKSHOP_STATUSES = [
-  INVITE_WORKFLOW_STATUS.IN_WORKSHOP_REVIEW,
-  INVITE_WORKFLOW_STATUS.NEEDS_CUSTOMER_UPDATE,
-  INVITE_WORKFLOW_STATUS.APPROVED,
-  INVITE_WORKFLOW_STATUS.READY_FOR_SCHEDULING,
-  INVITE_WORKFLOW_STATUS.SCHEDULED,
-  INVITE_WORKFLOW_STATUS.SENDING,
-  INVITE_WORKFLOW_STATUS.PARTIALLY_SENT,
-  INVITE_WORKFLOW_STATUS.SENT,
-] as const
 
 function toIso(value: unknown): string | null {
   if (!value) return null
@@ -24,6 +17,52 @@ function toIso(value: unknown): string | null {
   return Number.isFinite(d.getTime()) ? d.toISOString() : null
 }
 
+async function loadWorkshopInvites(adminDb: FirebaseFirestore.Firestore, limit: number) {
+  const collected = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>()
+
+  const tryAddDocs = (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
+    for (const doc of docs) {
+      if (!collected.has(doc.id)) collected.set(doc.id, doc)
+    }
+  }
+
+  try {
+    const primary = await adminDb
+      .collection('invites')
+      .where('workflowStatus', 'in', [...VISIBLE_WORKSHOP_STATUSES])
+      .orderBy('workshopEnteredAt', 'desc')
+      .limit(limit)
+      .get()
+    tryAddDocs(primary.docs)
+  } catch {
+    try {
+      const fallback = await adminDb
+        .collection('invites')
+        .where('workflowStatus', 'in', [...VISIBLE_WORKSHOP_STATUSES])
+        .limit(limit)
+        .get()
+      tryAddDocs(fallback.docs)
+    } catch {
+      // Continue to paid fallback.
+    }
+  }
+
+  try {
+    const paidSnap = await adminDb
+      .collection('invites')
+      .where('paymentStatus', '==', 'paid')
+      .orderBy('updatedAt', 'desc')
+      .limit(Math.max(limit, 120))
+      .get()
+    tryAddDocs(paidSnap.docs)
+  } catch {
+    const paidFallback = await adminDb.collection('invites').orderBy('updatedAt', 'desc').limit(400).get()
+    tryAddDocs(paidFallback.docs)
+  }
+
+  return [...collected.values()]
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { adminDb } = await verifyAdminRequest(request)
@@ -32,33 +71,13 @@ export async function GET(request: NextRequest) {
     const limit = Math.max(1, Math.min(200, limitRaw))
     const query = String(request.nextUrl.searchParams.get('q') || '').trim().toLowerCase()
 
-    let snap: FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>
-    try {
-      snap = await adminDb
-        .collection('invites')
-        .where('workflowStatus', 'in', [...VISIBLE_WORKSHOP_STATUSES])
-        .orderBy('workshopEnteredAt', 'desc')
-        .limit(limit)
-        .get()
-    } catch {
-      try {
-        snap = await adminDb
-          .collection('invites')
-          .where('workflowStatus', 'in', [...VISIBLE_WORKSHOP_STATUSES])
-          .limit(limit)
-          .get()
-      } catch {
-        snap = await adminDb.collection('invites').orderBy('updatedAt', 'desc').limit(300).get()
-      }
-    }
+    const docs = await loadWorkshopInvites(adminDb, limit)
 
     const invitesRaw = await Promise.all(
-      snap.docs.map(async (doc) => {
+      docs.map(async (doc) => {
         try {
           const row = doc.data() as Record<string, unknown>
-          if (!VISIBLE_WORKSHOP_STATUSES.includes(String(row?.workflowStatus || '') as (typeof VISIBLE_WORKSHOP_STATUSES)[number])) {
-            return null
-          }
+          if (!isVisibleInWorkshopQueue(row)) return null
 
           let internal: Record<string, unknown> = {}
           try {
@@ -82,9 +101,7 @@ export async function GET(request: NextRequest) {
             }
           }
 
-          const adminPreviewUrl = String(
-            internal?.adminPreviewUrl || row?.previewUrl || row?.inviteImageUrl || row?.finalUrl || ''
-          ).trim()
+          const adminPreviewUrl = resolveAdminPreviewUrl(row, internal)
 
           return {
             id: doc.id,
@@ -94,7 +111,7 @@ export async function GET(request: NextRequest) {
             workflowStatus: String(row?.workflowStatus || ''),
             reviewStatus: String(row?.reviewStatus || ''),
             adminPreviewUrl,
-            workshopEnteredAt: toIso(row?.workshopEnteredAt),
+            workshopEnteredAt: toIso(row?.workshopEnteredAt) || toIso(row?.paidAt) || toIso(row?.updatedAt),
           }
         } catch (docError) {
           console.error('[ADMIN_REVIEW_QUEUE] failed to map invite', doc.id, docError)
