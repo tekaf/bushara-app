@@ -498,52 +498,56 @@ export default function AdminWorkshopPage() {
     }
   }
 
-  const saveAll = async () => {
-    if (!user || !inviteId || saving) return
-    setSaving(true)
-    setError('')
-    try {
-      const token = await user.getIdToken()
-      const textPayload: Record<string, string> = {}
-      for (const [blockId, value] of Object.entries(editedBlocks)) {
-        assignPayloadByBlockId(textPayload, blockId, String(value || ''))
+  const collectSnapshotBlocksFromIframe = (): SnapshotPatchBlock[] => {
+    const doc = iframeRef.current?.contentDocument
+    if (!doc) return []
+    return Array.from(
+      doc.querySelectorAll<HTMLElement>('.text-block[data-block-id], .image-block[data-block-id]')
+    ).map((node) => {
+      const style = node.style
+      const isTextBlock = node.classList.contains('text-block')
+      return {
+        id: String(node.dataset.blockId || ''),
+        content: isTextBlock ? (node.innerText || '').replace(/\n/g, ' ').trim() : '',
+        xPx: Math.max(0, Math.round(toPx(style.left, 0))),
+        yPx: Math.max(0, Math.round(toPx(style.top, 0))),
+        wPx: Math.max(0, Math.round(toPx(style.width, 0))),
+        hPx: Math.max(0, Math.round(toPx(style.height, 0))),
+        fontFamily: normalizeFontFamily(style.fontFamily || ''),
+        fontSize: Math.max(8, Math.round(toPx(style.fontSize, 16))),
+        fontWeight: Math.max(100, Math.round(Number(style.fontWeight || 400))),
+        color: String(style.color || style.backgroundColor || '').trim(),
+        align: (String(style.textAlign || 'center') as 'left' | 'center' | 'right'),
+        lineHeight: Math.max(0.8, Number(style.lineHeight || 1.2)),
+        direction: (String(style.direction || 'rtl') as 'rtl' | 'ltr'),
+        visible: true,
       }
-      const doc = iframeRef.current?.contentDocument
-      const snapshotBlocks: SnapshotPatchBlock[] = doc
-        ? Array.from(doc.querySelectorAll<HTMLElement>('.text-block[data-block-id]')).map((node) => {
-            const style = node.style
-            return {
-              id: String(node.dataset.blockId || ''),
-              content: (node.innerText || '').replace(/\n/g, ' ').trim(),
-              xPx: Math.max(0, Math.round(toPx(style.left, 0))),
-              yPx: Math.max(0, Math.round(toPx(style.top, 0))),
-              wPx: Math.max(0, Math.round(toPx(style.width, 0))),
-              hPx: Math.max(0, Math.round(toPx(style.height, 0))),
-              fontFamily: normalizeFontFamily(style.fontFamily || ''),
-              fontSize: Math.max(8, Math.round(toPx(style.fontSize, 16))),
-              fontWeight: Math.max(100, Math.round(Number(style.fontWeight || 400))),
-              color: String(style.color || '').trim(),
-              align: (String(style.textAlign || 'center') as 'left' | 'center' | 'right'),
-              lineHeight: Math.max(0.8, Number(style.lineHeight || 1.2)),
-              direction: (String(style.direction || 'rtl') as 'rtl' | 'ltr'),
-              visible: true,
-            }
-          })
-        : []
-      const designerRes = await fetch(`/api/admin/invitations/review/${encodeURIComponent(inviteId)}/designer`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          blockPositionOverrides: positionsByBlockId,
-          blockStyleOverrides: styleByBlockId,
-          snapshotPatch: {
-            blocks: snapshotBlocks,
-          },
-        }),
-      })
-      const designerData = await designerRes.json().catch(() => ({}))
-      if (!designerRes.ok) throw new Error(designerData?.error || 'Failed to save designer changes')
+    })
+  }
 
+  const persistWorkshopEdits = async () => {
+    if (!user || !inviteId) return
+    const token = await user.getIdToken()
+    const textPayload: Record<string, string> = {}
+    for (const [blockId, value] of Object.entries(editedBlocks)) {
+      assignPayloadByBlockId(textPayload, blockId, String(value || ''))
+    }
+    const snapshotBlocks = collectSnapshotBlocksFromIframe()
+    const designerRes = await fetch(`/api/admin/invitations/review/${encodeURIComponent(inviteId)}/designer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        blockPositionOverrides: positionsByBlockId,
+        blockStyleOverrides: styleByBlockId,
+        snapshotPatch: {
+          blocks: snapshotBlocks,
+        },
+      }),
+    })
+    const designerData = await designerRes.json().catch(() => ({}))
+    if (!designerRes.ok) throw new Error(designerData?.error || 'Failed to save designer changes')
+
+    if (Object.keys(textPayload).length > 0) {
       const editRes = await fetch(`/api/admin/invitations/review/${encodeURIComponent(inviteId)}/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -554,15 +558,25 @@ export default function AdminWorkshopPage() {
       })
       const editData = await editRes.json().catch(() => ({}))
       if (!editRes.ok) throw new Error(editData?.error || 'Failed to save invite edits')
-      const previewRes = await fetch(`/api/admin/invitations/review/${encodeURIComponent(inviteId)}/regenerate-preview`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const previewData = await previewRes.json().catch(() => ({}))
-      if (!previewRes.ok) {
-        throw new Error(previewData?.error || 'Failed to regenerate admin preview')
-      }
-      alert('تم حفظ التعديلات بنجاح.')
+    }
+
+    const previewRes = await fetch(`/api/admin/invitations/review/${encodeURIComponent(inviteId)}/regenerate-preview`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const previewData = await previewRes.json().catch(() => ({}))
+    if (!previewRes.ok) {
+      throw new Error(previewData?.error || 'Failed to regenerate admin preview')
+    }
+  }
+
+  const saveAll = async () => {
+    if (!user || !inviteId || saving) return
+    setSaving(true)
+    setError('')
+    try {
+      await persistWorkshopEdits()
+      showToast('success', 'تم حفظ التعديلات بنجاح.')
       await loadAll()
     } catch (e: any) {
       setError(e?.message || 'Failed to save workshop edits')
@@ -576,6 +590,7 @@ export default function AdminWorkshopPage() {
     setApproving(true)
     setError('')
     try {
+      await persistWorkshopEdits()
       const token = await user.getIdToken()
       const response = await fetch(`/api/admin/invitations/review/${encodeURIComponent(inviteId)}/approve`, {
         method: 'POST',

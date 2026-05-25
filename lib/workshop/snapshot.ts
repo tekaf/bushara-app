@@ -576,6 +576,23 @@ export function ensureBlocksFromPreset(
   )
 }
 
+/** Merge admin-edited blocks into the saved snapshot without dropping untouched blocks (e.g. images). */
+export function mergeSnapshotBlocksById(
+  existingBlocks: SnapshotBlock[],
+  patchedBlocks: SnapshotBlock[],
+  templateType: SnapshotTemplateType = 'A'
+): SnapshotBlock[] {
+  const byId = new Map<string, SnapshotBlock>()
+  for (const block of filterSnapshotBlocksByTemplateType(existingBlocks, templateType)) {
+    byId.set(block.id, block)
+  }
+  for (const block of filterSnapshotBlocksByTemplateType(patchedBlocks, templateType)) {
+    const prev = byId.get(block.id)
+    byId.set(block.id, prev ? { ...prev, ...block } : block)
+  }
+  return filterSnapshotBlocksByTemplateType(Array.from(byId.values()), templateType)
+}
+
 export function deriveRenderOptionsFromBlocks(blocks: SnapshotBlock[], fallbackLayoutB: any): RenderOptions {
   const blockStyleOverrides: Record<string, any> = {}
   const blockPositionOverrides: Record<string, any> = {}

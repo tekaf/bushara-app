@@ -15,6 +15,7 @@ import {
   sanitizeRenderFieldsByTemplateType,
   sanitizeForFirestore,
   type FinalInvitationSnapshot,
+  type SnapshotBlock,
   type SnapshotTemplateType,
 } from '@/lib/workshop/snapshot'
 import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
@@ -76,23 +77,41 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
       const { loadPresetFromFirestore, mergePresetWithBase } = await import('@/lib/template-presets/loader')
       const basePreset = await loadPresetFromFirestore(template.type)
       const preset = template.presetOverride ? mergePresetWithBase(basePreset, template.presetOverride) : basePreset
+      const backgroundUrl = String(snapshot.backgroundUrl || template?.assets?.backgroundUrl || '')
+      const forceRebuild = request.nextUrl.searchParams.get('rebuild') === '1'
+      const storedBlocks = filterSnapshotBlocksByTemplateType(
+        (Array.isArray(snapshot.blocks) ? snapshot.blocks : []) as SnapshotBlock[],
+        templateType
+      )
+
+      // Use persisted workshop snapshot on read — do not re-derive blocks from preset (that wipes admin edits).
+      if (!forceRebuild && storedBlocks.length > 0) {
+        const opts = (snapshot.renderOptions || {}) as any
+        const fields = sanitizeRenderFieldsByTemplateType(
+          applyBlocksToFields(snapshot.fields || {}, storedBlocks, templateType),
+          templateType
+        )
+        const html = await generateHTML(preset, backgroundUrl, fields, {
+          assetBaseUrl: request.nextUrl.origin,
+          layoutB: opts.layoutB,
+          blockStyleOverrides: opts.blockStyleOverrides || {},
+          blockPositionOverrides: opts.blockPositionOverrides || {},
+        })
+        return NextResponse.json({ ok: true, html, snapshotReady: true, source: 'stored_blocks' })
+      }
+
       const opts = (snapshot.renderOptions || {}) as any
       const inviteFields = buildRenderFieldsFromInvite(invite)
       const mergedFields = sanitizeRenderFieldsByTemplateType(
         mergeFieldsWithFallback(snapshot.fields || {}, inviteFields),
         templateType
       )
-      const firstHtml = await generateHTML(
-        preset,
-        String(snapshot.backgroundUrl || template?.assets?.backgroundUrl || ''),
-        mergedFields,
-        {
-          assetBaseUrl: request.nextUrl.origin,
-          layoutB: opts.layoutB,
-          blockStyleOverrides: opts.blockStyleOverrides || {},
-          blockPositionOverrides: opts.blockPositionOverrides || {},
-        }
-      )
+      const firstHtml = await generateHTML(preset, backgroundUrl, mergedFields, {
+        assetBaseUrl: request.nextUrl.origin,
+        layoutB: opts.layoutB,
+        blockStyleOverrides: opts.blockStyleOverrides || {},
+        blockPositionOverrides: opts.blockPositionOverrides || {},
+      })
       const extracted = extractBlocksFromRenderHtml(firstHtml)
       const blocks = ensureBlocksFromPreset(extracted, mergedFields, preset, opts, templateType)
       const filteredBlocks = filterSnapshotBlocksByTemplateType(blocks, templateType)
@@ -101,23 +120,18 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
         templateType
       )
       const completedOptions = deriveRenderOptionsFromBlocks(filteredBlocks, opts.layoutB)
-      const finalHtml = await generateHTML(
-        preset,
-        String(snapshot.backgroundUrl || template?.assets?.backgroundUrl || ''),
-        completedFields,
-        {
-          assetBaseUrl: request.nextUrl.origin,
-          layoutB: (completedOptions as any).layoutB,
-          blockStyleOverrides: (completedOptions as any).blockStyleOverrides || {},
-          blockPositionOverrides: (completedOptions as any).blockPositionOverrides || {},
-        }
-      )
+      const finalHtml = await generateHTML(preset, backgroundUrl, completedFields, {
+        assetBaseUrl: request.nextUrl.origin,
+        layoutB: (completedOptions as any).layoutB,
+        blockStyleOverrides: (completedOptions as any).blockStyleOverrides || {},
+        blockPositionOverrides: (completedOptions as any).blockPositionOverrides || {},
+      })
       await internalRef.set(
         {
           finalInvitationSnapshot: sanitizeForFirestore({
             ...snapshot,
             templateType,
-            backgroundUrl: String(snapshot.backgroundUrl || template?.assets?.backgroundUrl || ''),
+            backgroundUrl,
             fields: completedFields,
             blocks: filteredBlocks,
             renderOptions: completedOptions,
@@ -126,7 +140,7 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
         },
         { merge: true }
       )
-      return NextResponse.json({ ok: true, html: finalHtml, snapshotReady: true })
+      return NextResponse.json({ ok: true, html: finalHtml, snapshotReady: true, source: 'rebuilt' })
     }
 
     // One-time migration for legacy invites with no snapshot.

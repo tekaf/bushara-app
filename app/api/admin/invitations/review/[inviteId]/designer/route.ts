@@ -8,6 +8,7 @@ import {
   applyBlocksToFields,
   deriveRenderOptionsFromBlocks,
   filterSnapshotBlocksByTemplateType,
+  mergeSnapshotBlocksById,
   sanitizeRenderFieldsByTemplateType,
   sanitizeForFirestore,
   type FinalInvitationSnapshot,
@@ -237,7 +238,7 @@ export async function POST(request: NextRequest, { params }: { params: { inviteI
         (Array.isArray(existingSnapshot.blocks) ? existingSnapshot.blocks : []) as SnapshotBlock[],
         templateType
       )
-      const effectiveBlocks = patchedBlocks.length ? patchedBlocks : existingBlocks
+      const effectiveBlocks = mergeSnapshotBlocksById(existingBlocks, patchedBlocks, templateType)
       const patchedOptions = deriveRenderOptionsFromBlocks(effectiveBlocks, layoutB)
       const nextFields = sanitizeRenderFieldsByTemplateType(
         applyBlocksToFields(existingSnapshot.fields || {}, effectiveBlocks, templateType),

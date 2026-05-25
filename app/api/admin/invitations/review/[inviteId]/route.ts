@@ -73,6 +73,7 @@ export async function GET(request: NextRequest, { params }: { params: { inviteId
 
     const ready = await ensurePaidInviteWorkshopReady(adminDb, inviteId, {
       origin: request.nextUrl.origin,
+      repairPreview: false,
     })
     const invite = ready.invite as any
 
