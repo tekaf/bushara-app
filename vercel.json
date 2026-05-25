@@ -3,6 +3,26 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "regions": ["dub1"]
+  "regions": ["dub1"],
+  "env": {
+    "AWS_LAMBDA_JS_RUNTIME": "nodejs20.x"
+  },
+  "functions": {
+    "app/api/render/final/route.ts": {
+      "memory": 3008,
+      "maxDuration": 60
+    },
+    "app/api/render/route.ts": {
+      "memory": 3008,
+      "maxDuration": 60
+    },
+    "app/api/admin/invitations/review/*/regenerate-preview/route.ts": {
+      "memory": 3008,
+      "maxDuration": 60
+    },
+    "app/api/admin/invitations/review/*/approve/route.ts": {
+      "memory": 3008,
+      "maxDuration": 60
+    }
+  }
 }
-

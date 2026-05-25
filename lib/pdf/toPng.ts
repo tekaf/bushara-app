@@ -1,4 +1,4 @@
-import { launchServerlessBrowser } from '@/lib/pdf/launch-browser'
+import { closeServerlessBrowser, launchServerlessBrowser } from '@/lib/pdf/launch-browser'
 
 const VIEWPORT_WIDTH = 1080
 const VIEWPORT_HEIGHT = 1920
@@ -198,7 +198,7 @@ export async function convertPdfUrlToPng(pdfUrl: string) {
     }
   } finally {
     await context.close()
-    await browser.close()
+    await closeServerlessBrowser(browser)
   }
 }
 
@@ -225,7 +225,7 @@ export async function convertPdfBufferToPng(pdfBuffer: Buffer) {
     }
   } finally {
     await context.close()
-    await browser.close()
+    await closeServerlessBrowser(browser)
   }
 }
 
@@ -264,6 +264,6 @@ export async function createThumbnailFromPngBuffer(pngBuffer: Buffer) {
     }
   } finally {
     await context.close()
-    await browser.close()
+    await closeServerlessBrowser(browser)
   }
 }

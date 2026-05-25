@@ -4,7 +4,7 @@ import type { Template } from '@/lib/firebase/types'
 import { getPreset } from '@/lib/template-presets/loader'
 import { generateHTML, type RenderFields } from '@/lib/render/engine'
 import { formatDateForInvitation } from '@/lib/render/date-format'
-import { launchServerlessBrowser } from '@/lib/pdf/launch-browser'
+import { closeServerlessBrowser, launchServerlessBrowser } from '@/lib/pdf/launch-browser'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -37,6 +37,7 @@ async function waitForRenderAssets(page: any) {
 }
 
 export async function POST(request: NextRequest) {
+  let browserInstance: Awaited<ReturnType<typeof launchServerlessBrowser>> | null = null
   try {
     console.log('📤 [RENDER] Starting render request...')
     const { templateId, variant, fields: rawFields, customPreset, customBackgroundUrl } = await request.json()
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
 
     // Render with Playwright
     console.log('📤 [RENDER] Launching browser...')
-    const browserInstance = await getBrowser()
+    browserInstance = await getBrowser()
     console.log('✅ [RENDER] Browser launched')
     
     const context = await browserInstance.newContext({
@@ -257,6 +258,8 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     )
+  } finally {
+    await closeServerlessBrowser(browserInstance)
   }
 }
 
