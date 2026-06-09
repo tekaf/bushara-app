@@ -97,7 +97,7 @@ export interface Payment {
   packageId: string
   amount: number
   currency: string
-  provider: 'stripe'
+  provider: 'stripe' | 'moyasar'
   providerSessionId: string
   status: 'pending' | 'paid' | 'failed' | 'refunded'
   createdAt: Date

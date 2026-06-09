@@ -19,7 +19,8 @@
 - **Framer Motion** للأنيميشن
 - **Firebase** (Auth + Firestore + Storage)
 - **QR Code** (qrcode.react + html5-qrcode)
-- **Stripe** للدفع
+- **Moyasar** للدفع (بطاقة / Apple Pay عبر صفحة Moyasar)
+- **Stripe** (اختياري — باقات الهدايا / تجاوز داخلي)
 
 ## خطوات التشغيل
 
@@ -48,7 +49,23 @@ WHATSAPP_PHONE_NUMBER_ID=your_whatsapp_phone_number_id
 WHATSAPP_BUSINESS_ACCOUNT_ID=your_whatsapp_business_account_id
 WHATSAPP_WEBHOOK_VERIFY_TOKEN=your_webhook_verify_token
 WHATSAPP_API_VERSION=v22.0
+
+# Moyasar (دفع الدعوات)
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+MOYASAR_SECRET_KEY=sk_test_xxxxxxxx
+NEXT_PUBLIC_MOYASAR_PUBLISHABLE_KEY=pk_test_xxxxxxxx
+MOYASAR_WEBHOOK_SECRET=your_webhook_secret
 ```
+
+### إعداد Moyasar
+
+1. من [لوحة Moyasar](https://dashboard.moyasar.com) انسخ مفاتيح **Test** أثناء التطوير:
+   - `MOYASAR_SECRET_KEY` = `sk_test_...` (سيرفر فقط — لا تضعه في الفرونت)
+   - `NEXT_PUBLIC_MOYASAR_PUBLISHABLE_KEY` = `pk_test_...` (للفرونت فقط)
+2. أنشئ Webhook يشير إلى: `{NEXT_PUBLIC_APP_URL}/api/webhooks/moyasar` مع حدث `payment_paid`.
+3. انسخ **Webhook Secret** إلى `MOYASAR_WEBHOOK_SECRET`.
+4. عند الإطلاق: استبدل المفاتيح بمفاتيح **Live** (`sk_live_...` / `pk_live_...`) في بيئة الإنتاج (Vercel / الخادم).
+5. التأكيد النهائي للدفع يتم من **Webhook فقط** — صفحة `/payment/callback` للعرض والانتظار فقط.
 
 ### 3. إعداد Firestore Security Rules
 

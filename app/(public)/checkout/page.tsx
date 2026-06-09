@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { addDoc, collection, doc, getDoc, setDoc } from 'firebase/firestore'
 import { PhoneAuthProvider, RecaptchaVerifier, linkWithCredential, reauthenticateWithCredential } from 'firebase/auth'
 import Navbar from '@/components/ui/Navbar'
@@ -12,6 +12,7 @@ import { useAuth } from '@/lib/auth/context'
 import { auth, db } from '@/lib/firebase/config'
 import { INVITE_REVIEW_STATUS, INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
 import { sanitizeForFirestore } from '@/lib/firebase/sanitize-doc'
+import { isMoyasarCheckoutAvailable } from '@/lib/moyasar/client'
 
 const TERMINAL_WORKFLOW_STATUSES = new Set<string>([
   INVITE_WORKFLOW_STATUS.SENT,
@@ -191,6 +192,7 @@ function buildFieldsPayloadFromDraft(formData: Record<string, any>, selectedOcca
 
 export default function CheckoutPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
   const [draft, setDraft] = useState<CheckoutDraft | null>(null)
   const [paying, setPaying] = useState(false)
@@ -320,6 +322,12 @@ export default function CheckoutPage() {
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (searchParams.get('payment') === 'cancelled') {
+      setGatewayNotice('تم إلغاء عملية الدفع. يمكنك المحاولة مرة أخرى.')
+    }
+  }, [searchParams])
 
   const isExpectedOtpHostname = () => {
     if (typeof window === 'undefined') return false
@@ -579,6 +587,209 @@ export default function CheckoutPage() {
     setPaymentError('')
     setGatewayNotice('')
     setCheckoutModalStage('payment')
+  }
+
+  const ensureInviteBeforePayment = async (
+    overridePhone?: { phoneE164: string; phoneLocal: string }
+  ): Promise<string> => {
+    if (!draft?.templateId || !hasValidPackage) {
+      throw new Error('لا يمكن إكمال الدفع بدون اختيار باقة.')
+    }
+    if (!user) {
+      throw new Error('سجل الدخول أولاً لإكمال الدفع.')
+    }
+
+    const effectivePhoneE164 = overridePhone?.phoneE164 || verifiedPhoneE164
+    const effectivePhoneLocal =
+      overridePhone?.phoneLocal || verifiedPhoneLocal || (normalizedPhone.ok ? normalizedPhone.local : '')
+    if (!effectivePhoneE164) {
+      throw new Error('يرجى تأكيد رقم الجوال قبل المتابعة للدفع')
+    }
+
+    const inviteStorageKey = `bushara_active_invite_id:${draft.templateId}`
+    let existingInviteId = window.sessionStorage.getItem(inviteStorageKey) || ''
+    if (existingInviteId) {
+      try {
+        const existingSnap = await getDoc(doc(db, 'invites', existingInviteId))
+        const existingWorkflow = String(existingSnap.data()?.workflowStatus || '')
+        if (existingSnap.exists() && TERMINAL_WORKFLOW_STATUSES.has(existingWorkflow)) {
+          existingInviteId = ''
+          window.sessionStorage.removeItem(inviteStorageKey)
+        }
+      } catch {
+        // Keep flow resilient if read fails.
+      }
+    }
+
+    const normalizedFormData = normalizeFormDataForInvite(draft.formData || {}, draft.selectedOccasion || '')
+    const sourceDraftId = `${user.uid}_${draft.templateId}`
+    let inviteImageUrl = draft.finalUrl || draft.previewUrl || ''
+
+    if (!inviteImageUrl) {
+      try {
+        const renderResponse = await fetch('/api/render/final', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            templateId: draft.templateId,
+            variant: 'whatsapp_1080x1920',
+            fields: buildFieldsPayloadFromDraft(normalizedFormData, draft.selectedOccasion || ''),
+          }),
+        })
+        const renderData = await renderResponse.json().catch(() => ({}))
+        if (renderResponse.ok && renderData?.url) {
+          inviteImageUrl = String(renderData.url)
+        }
+      } catch (error) {
+        console.error('Failed generating final invite image before payment:', error)
+      }
+    }
+
+    const pendingInviteBase = {
+      ownerId: user.uid,
+      sourceDraftId,
+      sourceTemplateId: draft.templateId,
+      sourceDraftLinkedAt: new Date(),
+      title: `دعوة ${normalizedFormData?.groomNameAr || ''} ${normalizedFormData?.brideNameAr || ''}`.trim() || 'دعوة مناسبة جديدة',
+      groomNameAr: normalizedFormData?.groomNameAr || '',
+      brideNameAr: normalizedFormData?.brideNameAr || '',
+      groomName: normalizedFormData?.groomNameAr || '',
+      brideName: normalizedFormData?.brideNameAr || '',
+      brideFatherName: normalizedFormData?.fatherOfBride || '',
+      groomFatherName: normalizedFormData?.fatherOfGroom || '',
+      engagementDate: normalizedFormData?.engagementDate || normalizedFormData?.date || '',
+      invitationType: normalizedFormData?.invitationType || 'attendance',
+      fatherOfBride: normalizedFormData?.fatherOfBride || '',
+      fatherOfGroom: normalizedFormData?.fatherOfGroom || '',
+      motherOfBride: normalizedFormData?.motherOfBride || '',
+      motherOfGroom: normalizedFormData?.motherOfGroom || '',
+      date: normalizedFormData?.date || '',
+      dateText: normalizedFormData?.dateText || '',
+      fullDateLine: normalizedFormData?.fullDateLine || '',
+      weddingDayLine: normalizedFormData?.weddingDayLine || '',
+      time: normalizedFormData?.receptionTime || '',
+      receptionTime: normalizedFormData?.receptionTime || '',
+      zaffaTime: normalizedFormData?.zaffaTime || '',
+      locationName: normalizedFormData?.hallLocation || '',
+      hallLocation: normalizedFormData?.hallLocation || '',
+      venueText: normalizedFormData?.venueText || normalizedFormData?.hallLocation || '',
+      introText: normalizedFormData?.introText || '',
+      inviteLine: normalizedFormData?.inviteLine || '',
+      verseOrDua: normalizedFormData?.verseOrDua || '',
+      formData: normalizedFormData,
+      locationMapUrl: '',
+      designId: draft.templateId,
+      selectedOccasion: draft.selectedOccasion || '',
+      occasionType: draft.selectedOccasion || '',
+      packageId: draft.packageGuests || '',
+      packageGuests: Number(draft.packageGuests || 0),
+      packagePrice: Number(draft.packagePrice || 0),
+      guestLimit: Number(draft.packageGuests || 0),
+      finalUrl: draft.finalUrl || '',
+      previewUrl: draft.previewUrl || '',
+      inviteImageUrl,
+      adminPreviewUrl: inviteImageUrl,
+      orderNumber: displayOrderCode,
+      orderStatus: 'awaiting_payment',
+      dispatchMode: 'manual',
+      dispatchStatus: 'pending',
+      status: 'draft',
+      paid: false,
+      paymentStatus: 'pending',
+      paymentMethod: 'moyasar',
+      customerPhoneE164: effectivePhoneE164,
+      customerPhoneLocal: effectivePhoneLocal,
+      customerPhoneVerified: true,
+      customerPhoneVerifiedAt: new Date(),
+      workflowStatus: INVITE_WORKFLOW_STATUS.AWAITING_PAYMENT,
+      reviewStatus: INVITE_REVIEW_STATUS.PENDING,
+      scheduledSendAt: null,
+      timezone: 'Asia/Riyadh',
+      sendStatusSummary: { total: 0, pending: 0, sent: 0, failed: 0 },
+      lastSendAt: null,
+      updatedAt: new Date(),
+    }
+
+    let inviteId = existingInviteId
+    if (existingInviteId) {
+      await setDoc(doc(db, 'invites', existingInviteId), sanitizeForFirestore(pendingInviteBase), { merge: true })
+    } else {
+      const inviteRef = await addDoc(
+        collection(db, 'invites'),
+        sanitizeForFirestore({ ...pendingInviteBase, createdAt: new Date() })
+      )
+      inviteId = inviteRef.id
+      window.sessionStorage.setItem(inviteStorageKey, inviteId)
+    }
+
+    window.sessionStorage.setItem('bushara_current_invite_id', inviteId)
+    window.sessionStorage.setItem(`bushara_active_invite_id:${draft.templateId}`, inviteId)
+
+    try {
+      const initOrderResponse = await fetch(`/api/user/invitations/${encodeURIComponent(inviteId)}/initialize-order`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+      })
+      const initOrderData = await initOrderResponse.json().catch(() => ({}))
+      const persistedOrderCode = String(initOrderData?.orderCode || '').trim()
+      if (persistedOrderCode) setResolvedOrderCode(persistedOrderCode)
+    } catch (error) {
+      console.error('[ORDER] Failed to initialize order foundation before payment:', error)
+    }
+
+    return inviteId
+  }
+
+  const startMoyasarPayment = async (overridePhone?: { phoneE164: string; phoneLocal: string }) => {
+    if (!user) {
+      alert('سجل الدخول أولاً لإكمال الدفع.')
+      router.push('/login')
+      return
+    }
+
+    setPaymentError('')
+    setGatewayNotice('')
+    setPaying(true)
+
+    if (!isMoyasarCheckoutAvailable()) {
+      setPaymentError('بوابة الدفع غير مفعّلة. تأكد من إعداد مفاتيح Moyasar في بيئة التشغيل.')
+      setPaying(false)
+      return
+    }
+
+    try {
+      const invitationId = await ensureInviteBeforePayment(overridePhone)
+      if (!total || total <= 0) {
+        throw new Error('مبلغ الدفع غير صالح')
+      }
+
+      const paymentResponse = await fetch('/api/payments/moyasar/create', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${await user.getIdToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          invitationId,
+          amount: total,
+        }),
+      })
+      const paymentData = await paymentResponse.json().catch(() => ({}))
+      if (!paymentResponse.ok) {
+        throw new Error(String(paymentData?.error || 'تعذر بدء عملية الدفع'))
+      }
+
+      const paymentUrl = String(paymentData?.payment_url || '').trim()
+      if (!paymentUrl) {
+        throw new Error('لم يتم استلام رابط الدفع من Moyasar')
+      }
+
+      window.location.assign(paymentUrl)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'تعذر بدء الدفع'
+      setPaymentError(message)
+      setPaying(false)
+    }
   }
 
   const finalizeInviteAfterPayment = async (
@@ -941,15 +1152,18 @@ export default function CheckoutPage() {
       }
       setPaymentError('كود التجاوز غير صحيح. يمكنك تجربة بوابة الدفع الرسمية عند عودتها للعمل.')
     }
-    setGatewayNotice('اختر وسيلة الدفع أدناه. نأسف، بوابة الدفع تحت الصيانة المؤقتة حالياً.')
+
+    await startMoyasarPayment({
+      phoneE164: effectivePhoneE164,
+      phoneLocal: effectivePhoneLocal,
+    })
   }
 
   const showGatewayOptions = phoneVerified && !paying
   const isOtpStage = checkoutModalStage === 'otp'
 
-  const handleGatewayMethodClick = (method: 'apple_pay' | 'card') => {
-    const methodLabel = method === 'apple_pay' ? 'Apple Pay' : 'الدفع بالبطاقة'
-    setPaymentError(`نأسف، ${methodLabel} تحت الصيانة حالياً. سنعيد تفعيل الخدمة قريبًا.`)
+  const handleGatewayMethodClick = (_method: 'apple_pay' | 'card') => {
+    void startMoyasarPayment()
   }
 
   const handleBackToEdit = () => {
@@ -1055,7 +1269,7 @@ export default function CheckoutPage() {
 
                 <div className="mt-4 space-y-2 text-xs text-gray-500">
                   <p>🔒 الدفع آمن ومشفر</p>
-                  <p>💳 طرق الدفع المعتمدة متاحة عند الإطلاق الكامل</p>
+                  <p>💳 الدفع عبر Moyasar (بطاقة / Apple Pay)</p>
                   <p className="pt-1">يذهب جزء من مبلغ الشراء إلى إحسان 💚</p>
                 </div>
 
