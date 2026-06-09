@@ -13,6 +13,7 @@ import { auth, db } from '@/lib/firebase/config'
 import { INVITE_REVIEW_STATUS, INVITE_WORKFLOW_STATUS } from '@/lib/invitations/workflow'
 import { sanitizeForFirestore } from '@/lib/firebase/sanitize-doc'
 import { isMoyasarCheckoutAvailable } from '@/lib/moyasar/client'
+import { arePaymentsPaused, PAYMENTS_PAUSED_MESSAGE } from '@/lib/payments/payments-paused'
 
 const TERMINAL_WORKFLOW_STATUSES = new Set<string>([
   INVITE_WORKFLOW_STATUS.SENT,
@@ -741,6 +742,12 @@ function CheckoutPageContent() {
   }
 
   const startMoyasarPayment = async (overridePhone?: { phoneE164: string; phoneLocal: string }) => {
+    if (arePaymentsPaused()) {
+      setPaymentError(PAYMENTS_PAUSED_MESSAGE)
+      setPaying(false)
+      return
+    }
+
     if (!user) {
       alert('سجل الدخول أولاً لإكمال الدفع.')
       router.push('/login')

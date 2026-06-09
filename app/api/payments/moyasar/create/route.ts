@@ -9,6 +9,7 @@ import {
   getMoyasarInvitesCollection,
   isMoyasarPaymentEnabled,
 } from '@/lib/moyasar/server'
+import { arePaymentsPaused, PAYMENTS_PAUSED_MESSAGE } from '@/lib/payments/payments-paused'
 
 export const runtime = 'nodejs'
 
@@ -27,6 +28,10 @@ async function verifyUser(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (arePaymentsPaused()) {
+      return NextResponse.json({ error: PAYMENTS_PAUSED_MESSAGE }, { status: 503 })
+    }
+
     if (!isMoyasarPaymentEnabled()) {
       return NextResponse.json(
         {
