@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { addDoc, collection, doc, getDoc, setDoc } from 'firebase/firestore'
 import { PhoneAuthProvider, RecaptchaVerifier, linkWithCredential, reauthenticateWithCredential } from 'firebase/auth'
@@ -190,7 +190,7 @@ function buildFieldsPayloadFromDraft(formData: Record<string, any>, selectedOcca
   }
 }
 
-export default function CheckoutPage() {
+function CheckoutPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
@@ -1504,5 +1504,23 @@ export default function CheckoutPage() {
       )}
       <Footer />
     </>
+  )
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <Navbar />
+          <main className="min-h-screen px-4 pb-20 pt-32">
+            <div className="container mx-auto max-w-6xl text-center text-muted">جارٍ التحميل...</div>
+          </main>
+          <Footer />
+        </>
+      }
+    >
+      <CheckoutPageContent />
+    </Suspense>
   )
 }
