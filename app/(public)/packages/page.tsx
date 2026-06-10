@@ -21,11 +21,11 @@ import { useAuth } from '@/lib/auth/context'
 import { db } from '@/lib/firebase/config'
 import {
   LAUNCH_DISCOUNT_PERCENT,
+  LAUNCH_OFFER_DURATION_DAYS,
   PACKAGE_TIERS,
+  getLaunchOfferEndsAt,
   getPackageTierBySize,
 } from '@/lib/pricing/packages'
-
-const OFFER_ENDS_AT = new Date('2026-03-31T23:59:59+03:00').getTime()
 
 function formatSar(value: number) {
   return `${value} ر.س`
@@ -73,7 +73,7 @@ function PackagesPageContent() {
 
   useEffect(() => {
     const updateCountdown = () => {
-      const distance = OFFER_ENDS_AT - Date.now()
+      const distance = getLaunchOfferEndsAt() - Date.now()
       if (distance <= 0) {
         setCountdown('ينتهي اليوم')
         return
@@ -283,7 +283,9 @@ function PackagesPageContent() {
               <Sparkles size={16} />
               خصم {LAUNCH_DISCOUNT_PERCENT}%
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">عرض الإطلاق 🔥 خصم 60% لفترة محدودة</h1>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">
+              عرض الإطلاق 🔥 خصم {LAUNCH_DISCOUNT_PERCENT}% لمدة {LAUNCH_OFFER_DURATION_DAYS} يوماً
+            </h1>
             <p className="text-lg md:text-xl text-muted max-w-2xl mx-auto mb-4">
               أسعار بشارة حالياً غير طبيعية عشان نكسر السوق ✨
             </p>

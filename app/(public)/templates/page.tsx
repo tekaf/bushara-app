@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { arrayRemove, arrayUnion, collection, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore'
@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth/context'
 import StepperHeader from '@/components/flow/StepperHeader'
 import TemplateGrid from '@/components/flow/TemplateGrid'
 import { parsePackageFromParams, readPackageFromSessionStorage } from '@/lib/flow/package-selection'
+import { isTemplateFavoritesView } from '@/lib/flow/template-routes'
 
 function TemplatesPageContent() {
   const { user } = useAuth()
@@ -21,10 +22,12 @@ function TemplatesPageContent() {
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
   const [likedTemplateIds, setLikedTemplateIds] = useState<string[]>([])
-  const [hasValidPackage, setHasValidPackage] = useState(false)
+  const [ready, setReady] = useState(false)
+  const [checkoutFlow, setCheckoutFlow] = useState(false)
   const selectedOccasion = searchParams.get('occasion') || ''
   const packageGuests = searchParams.get('packageGuests') || ''
   const packagePrice = searchParams.get('packagePrice') || ''
+  const favoritesOnly = isTemplateFavoritesView(searchParams)
 
   const occasionOptions: Array<{ label: string; value: string; type: 'A' | 'B' | 'C' }> = [
     { label: 'زواج أو ملكه', value: 'wedding', type: 'A' },
@@ -45,7 +48,8 @@ function TemplatesPageContent() {
   useEffect(() => {
     const selectedPackage = parsePackageFromParams(packageGuests, packagePrice)
     if (selectedPackage) {
-      setHasValidPackage(true)
+      setCheckoutFlow(true)
+      setReady(true)
       return
     }
 
@@ -59,32 +63,31 @@ function TemplatesPageContent() {
       return
     }
 
-    router.replace('/packages')
+    setCheckoutFlow(false)
+    setReady(true)
   }, [packageGuests, packagePrice, router, selectedOccasion])
 
   useEffect(() => {
-    if (!hasValidPackage) return
-    if (!selectedOccasion) {
-      router.replace(`/occasions${packageGuests || packagePrice ? `?${new URLSearchParams({ ...(packageGuests ? { packageGuests } : {}), ...(packagePrice ? { packagePrice } : {}) }).toString()}` : ''}`)
+    if (!ready) return
+
+    if (checkoutFlow && !selectedOccasion) {
+      router.replace(
+        `/occasions${packageGuests || packagePrice ? `?${new URLSearchParams({ ...(packageGuests ? { packageGuests } : {}), ...(packagePrice ? { packagePrice } : {}) }).toString()}` : ''}`
+      )
       return
     }
+
     const fetchTemplates = async () => {
       try {
-        // Fetch all templates and filter/sort on client side (avoids needing index)
-        const q = query(
-          collection(db, 'templates'),
-          where('status', '==', 'published')
-        )
+        const q = query(collection(db, 'templates'), where('status', '==', 'published'))
         const snapshot = await getDocs(q)
         const templatesData = (snapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate() || new Date(),
-            updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-          })) as Template[])
-          // Sort by createdAt descending on client side
-          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+            createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+            updatedAt: docSnap.data().updatedAt?.toDate() || new Date(),
+          })) as Template[]).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
         setTemplates(templatesData)
       } catch (error) {
         console.error('Error fetching templates:', error)
@@ -94,7 +97,7 @@ function TemplatesPageContent() {
     }
 
     fetchTemplates()
-  }, [hasValidPackage, packageGuests, packagePrice, router, selectedOccasion])
+  }, [checkoutFlow, packageGuests, packagePrice, ready, router, selectedOccasion])
 
   useEffect(() => {
     const loadLiked = async () => {
@@ -104,7 +107,7 @@ function TemplatesPageContent() {
       }
       try {
         const userSnap = await getDoc(doc(db, 'users', user.uid))
-        const userData = userSnap.exists() ? (userSnap.data() as any) : {}
+        const userData = userSnap.exists() ? (userSnap.data() as { likedTemplateIds?: string[] }) : {}
         setLikedTemplateIds(Array.isArray(userData?.likedTemplateIds) ? userData.likedTemplateIds : [])
       } catch (error) {
         console.error('Failed to load likes:', error)
@@ -134,20 +137,26 @@ function TemplatesPageContent() {
     }
   }
 
-  const filteredTemplates = selectedType
-    ? templates.filter((template) => template.type === selectedType)
-    : []
+  const displayTemplates = useMemo(() => {
+    if (!checkoutFlow) {
+      const base = favoritesOnly
+        ? templates.filter((template) => likedTemplateIds.includes(template.id))
+        : templates
+      return base
+    }
+    return selectedType ? templates.filter((template) => template.type === selectedType) : []
+  }, [checkoutFlow, favoritesOnly, likedTemplateIds, selectedType, templates])
 
   return (
     <>
       <Navbar />
       <main className="pt-32 pb-20 px-4 min-h-screen">
         <div className="container mx-auto">
-          {!hasValidPackage ? (
+          {!ready ? (
             <div className="rounded-2xl bg-white p-8 shadow text-center text-muted">
-              جارٍ التحقق من الباقة المختارة...
+              جارٍ التحميل...
             </div>
-          ) : (
+          ) : checkoutFlow ? (
             <>
               <StepperHeader steps={flowSteps} activeStep={2} />
               <div className="text-center mb-12">
@@ -182,19 +191,78 @@ function TemplatesPageContent() {
                 <div className="text-center py-20">
                   <p className="text-muted text-xl">اختر نوع المناسبة لعرض النماذج</p>
                 </div>
-              ) : filteredTemplates.length === 0 ? (
+              ) : displayTemplates.length === 0 ? (
                 <div className="text-center py-20">
                   <ImageIcon className="mx-auto text-muted mb-4" size={64} />
                   <p className="text-muted text-xl">لا توجد تصاميم متاحة لهذا النوع حالياً</p>
                 </div>
               ) : (
                 <TemplateGrid
-                  templates={filteredTemplates}
+                  templates={displayTemplates}
                   selectedOccasion={selectedOccasion}
                   packageGuests={packageGuests}
                   packagePrice={packagePrice}
                   likedTemplateIds={likedTemplateIds}
                   onToggleLike={handleToggleLike}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+                <Link
+                  href="/dashboard"
+                  className="inline-flex rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-gray-50"
+                >
+                  العودة لحسابي
+                </Link>
+                {!favoritesOnly && (
+                  <Link
+                    href="/packages"
+                    className="inline-flex rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-accent"
+                  >
+                    ابدأ دعوة جديدة
+                  </Link>
+                )}
+              </div>
+
+              <div className="text-center mb-12">
+                <h1 className="text-4xl md:text-5xl font-bold mb-4">
+                  {favoritesOnly ? 'تصاميمك المفضلة' : 'التصاميم'}
+                </h1>
+                <p className="text-xl text-muted">
+                  {favoritesOnly
+                    ? 'تصفّح التصاميم التي أضفتها إلى المفضلة'
+                    : 'استكشف جميع التصاميم المتاحة واختر ما يناسب مناسبتك'}
+                </p>
+              </div>
+
+              {loading ? (
+                <div className="text-center py-20">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted">جاري التحميل...</p>
+                </div>
+              ) : displayTemplates.length === 0 ? (
+                <div className="text-center py-20">
+                  <ImageIcon className="mx-auto text-muted mb-4" size={64} />
+                  <p className="text-muted text-xl mb-4">
+                    {favoritesOnly ? 'لم تضف تصاميم مفضلة بعد' : 'لا توجد تصاميم متاحة حالياً'}
+                  </p>
+                  {favoritesOnly && (
+                    <Link href="/templates" className="text-primary font-semibold hover:text-accent">
+                      استكشف جميع التصاميم
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <TemplateGrid
+                  templates={displayTemplates}
+                  selectedOccasion={selectedOccasion}
+                  packageGuests={packageGuests}
+                  packagePrice={packagePrice}
+                  likedTemplateIds={likedTemplateIds}
+                  onToggleLike={handleToggleLike}
+                  browseMode
                 />
               )}
             </>

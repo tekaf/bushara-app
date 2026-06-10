@@ -1171,12 +1171,7 @@ function CheckoutPageContent() {
     })
   }
 
-  const showGatewayOptions = phoneVerified && !paying
   const isOtpStage = checkoutModalStage === 'otp'
-
-  const handleGatewayMethodClick = (_method: 'apple_pay' | 'card') => {
-    void startMoyasarPayment()
-  }
 
   const handleBackToEdit = () => {
     if (!draft?.templateId) {
@@ -1401,9 +1396,6 @@ function CheckoutPageContent() {
                 </>
               ) : (
                 <>
-                  <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-                    تم توثيق رقم الجوال بنجاح: {verifiedPhoneLocal || (normalizedPhone.ok ? normalizedPhone.local : '-')}
-                  </div>
                   <div className="space-y-2">
                     <p className="text-xs text-muted">اختياري: كود تجاوز الدفع (للاستخدام الداخلي فقط)</p>
                     <input
@@ -1414,27 +1406,6 @@ function CheckoutPageContent() {
                       className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                     />
                   </div>
-                  {showGatewayOptions ? (
-                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
-                      <p className="mb-2 text-sm font-semibold text-textDark">بوابة الدفع</p>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        <button
-                          type="button"
-                          onClick={() => handleGatewayMethodClick('apple_pay')}
-                          className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
-                        >
-                          Apple Pay
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleGatewayMethodClick('card')}
-                          className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
-                        >
-                          الدفع بالبطاقة
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
                   {paymentError && <p className="text-xs text-red-600">{paymentError}</p>}
                   {gatewayNotice && <p className="text-xs text-amber-700">{gatewayNotice}</p>}
                   <button
@@ -1444,25 +1415,6 @@ function CheckoutPageContent() {
                     className="mt-1 h-12 w-full rounded-xl bg-primary font-semibold text-white hover:bg-accent transition-colors disabled:opacity-50"
                   >
                     {paying ? 'جارٍ المعالجة...' : 'متابعة الدفع'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCheckoutModalStage('otp')
-                      setPhoneVerified(false)
-                      setVerifiedPhoneE164('')
-                      setVerifiedPhoneLocal('')
-                      setOtpVerificationId('')
-                      setPendingOtpPhoneE164('')
-                      setOtpCode('')
-                      setOtpError('')
-                      setOtpStatus('')
-                      setPaymentError('')
-                      setGatewayNotice('')
-                    }}
-                    className="h-11 w-full rounded-xl border border-gray-300 bg-white font-semibold text-textDark hover:bg-gray-50 transition-colors"
-                  >
-                    تعديل رقم الجوال
                   </button>
                 </>
               )}

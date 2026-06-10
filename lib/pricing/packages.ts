@@ -6,6 +6,16 @@ export type PackageTier = {
 
 export const LAUNCH_DISCOUNT_PERCENT = 60
 
+/** مدة عرض الإطلاق بالأيام */
+export const LAUNCH_OFFER_DURATION_DAYS = 14
+
+/** بداية عرض الإطلاق (توقيت الرياض) */
+export const LAUNCH_OFFER_START_AT = new Date('2026-06-08T00:00:00+03:00')
+
+export function getLaunchOfferEndsAt(): number {
+  return LAUNCH_OFFER_START_AT.getTime() + LAUNCH_OFFER_DURATION_DAYS * 24 * 60 * 60 * 1000
+}
+
 export const PACKAGE_TIERS: PackageTier[] = [
   { guests: 50, paidPrice: 299, oldPrice: 734 },
   { guests: 100, paidPrice: 379, oldPrice: 949 },

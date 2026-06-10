@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { Heart } from 'lucide-react'
+import { templateDetailBrowseUrl, templatesBrowseUrl } from '@/lib/flow/template-routes'
 import { arrayRemove, arrayUnion, doc, updateDoc } from 'firebase/firestore'
 import type { Template } from '@/lib/firebase/types'
 import { db } from '@/lib/firebase/config'
@@ -39,7 +40,10 @@ export default function Favorites({
           <h2 className="text-base font-bold text-textDark">التصاميم المفضلة</h2>
           <p className="text-xs text-muted">اضغط القلب لإزالة التصميم من المفضلة</p>
         </div>
-        <Link href="/templates" className="shrink-0 text-xs font-semibold text-primary hover:text-accent">
+        <Link
+          href={templatesBrowseUrl({ favoritesOnly: true })}
+          className="shrink-0 text-xs font-semibold text-primary hover:text-accent"
+        >
           استكشف المزيد
         </Link>
       </div>
@@ -47,7 +51,7 @@ export default function Favorites({
       {templates.length === 0 ? (
         <p className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-muted">
           لم تضف تصاميم مفضلة بعد.{' '}
-          <Link href="/templates" className="font-semibold text-primary hover:text-accent">
+          <Link href={templatesBrowseUrl()} className="font-semibold text-primary hover:text-accent">
             استكشف التصاميم
           </Link>
         </p>
@@ -60,7 +64,7 @@ export default function Favorites({
                 key={template.id}
                 className="group overflow-hidden rounded-2xl border border-gray-200/90 bg-white transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
               >
-                <Link href={`/templates/${encodeURIComponent(template.id)}`} className="block">
+                <Link href={templateDetailBrowseUrl(template.id)} className="block">
                   <div className="relative aspect-[9/14] overflow-hidden bg-bg">
                     {template.assets.thumbUrl ? (
                       <img

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { ChevronLeft, Heart, Ticket, Users, Wand2 } from 'lucide-react'
+import { templatesBrowseUrl } from '@/lib/flow/template-routes'
 
 const actions = [
   {
@@ -24,7 +25,7 @@ const actions = [
   },
   {
     title: 'التصاميم المفضلة',
-    href: '/templates',
+    href: templatesBrowseUrl({ favoritesOnly: true }),
     icon: Heart,
     tone: 'from-rose-500/10 to-white text-rose-700',
   },

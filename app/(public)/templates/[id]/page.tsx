@@ -13,6 +13,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth/context'
 import StepperHeader from '@/components/flow/StepperHeader'
 import { parsePackageFromParams, readPackageFromSessionStorage } from '@/lib/flow/package-selection'
+import { isTemplateBrowseMode, templatesBrowseUrl } from '@/lib/flow/template-routes'
 
 const AR_WEEKDAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
 const INVITE_FORM_DRAFT_KEY_PREFIX = 'bushara_invite_form_draft'
@@ -106,7 +107,9 @@ export default function TemplateDetailPage() {
   const packageGuests = searchParams.get('packageGuests') || ''
   const packagePrice = searchParams.get('packagePrice') || ''
   const selectedOccasion = searchParams.get('occasion') || ''
-  const [hasValidPackage, setHasValidPackage] = useState(false)
+  const browseMode = isTemplateBrowseMode(searchParams)
+  const [ready, setReady] = useState(false)
+  const [checkoutFlow, setCheckoutFlow] = useState(false)
 
   const [formData, setFormData] = useState({
     groomNameAr: '',
@@ -282,9 +285,16 @@ export default function TemplateDetailPage() {
   const zaffaTimeLine = formatTimeLine('الزفة', zaffaTimeValue)
 
   useEffect(() => {
+    if (browseMode) {
+      setCheckoutFlow(false)
+      setReady(true)
+      return
+    }
+
     const selectedPackage = parsePackageFromParams(packageGuests, packagePrice)
     if (selectedPackage) {
-      setHasValidPackage(true)
+      setCheckoutFlow(true)
+      setReady(true)
       return
     }
 
@@ -299,10 +309,10 @@ export default function TemplateDetailPage() {
     }
 
     router.replace('/packages')
-  }, [packageGuests, packagePrice, router, selectedOccasion, templateId])
+  }, [browseMode, packageGuests, packagePrice, router, selectedOccasion, templateId])
 
   useEffect(() => {
-    if (!hasValidPackage) return
+    if (!ready) return
     const fetchTemplate = async () => {
       try {
         const docRef = doc(db, 'templates', templateId)
@@ -314,15 +324,23 @@ export default function TemplateDetailPage() {
             createdAt: docSnap.data().createdAt?.toDate() || new Date(),
             updatedAt: docSnap.data().updatedAt?.toDate() || new Date(),
           } as Template
-          const expectedType =
-            selectedOccasion === 'wedding' ? 'A' : selectedOccasion === 'engagement' ? 'B' : selectedOccasion === 'special' ? 'C' : ''
-          if (expectedType && nextTemplate.type !== expectedType) {
-            const params = new URLSearchParams()
-            if (selectedOccasion) params.set('occasion', selectedOccasion)
-            if (packageGuests) params.set('packageGuests', packageGuests)
-            if (packagePrice) params.set('packagePrice', packagePrice)
-            router.replace(`/templates?${params.toString()}`)
-            return
+          if (checkoutFlow) {
+            const expectedType =
+              selectedOccasion === 'wedding'
+                ? 'A'
+                : selectedOccasion === 'engagement'
+                  ? 'B'
+                  : selectedOccasion === 'special'
+                    ? 'C'
+                    : ''
+            if (expectedType && nextTemplate.type !== expectedType) {
+              const params = new URLSearchParams()
+              if (selectedOccasion) params.set('occasion', selectedOccasion)
+              if (packageGuests) params.set('packageGuests', packageGuests)
+              if (packagePrice) params.set('packagePrice', packagePrice)
+              router.replace(`/templates?${params.toString()}`)
+              return
+            }
           }
           setTemplate(nextTemplate)
         }
@@ -336,7 +354,7 @@ export default function TemplateDetailPage() {
     if (templateId) {
       fetchTemplate()
     }
-  }, [hasValidPackage, packageGuests, packagePrice, router, selectedOccasion, templateId])
+  }, [checkoutFlow, packageGuests, packagePrice, ready, router, selectedOccasion, templateId])
 
   useEffect(() => {
     if (!templateId) return
@@ -540,8 +558,7 @@ export default function TemplateDetailPage() {
   }, [authLoading, router, templateId, user])
 
   const handleContinueToCheckout = () => {
-    if (!hasValidPackage) {
-      alert('يرجى اختيار باقة أولاً قبل إكمال الطلب.')
+    if (!checkoutFlow) {
       router.push('/packages')
       return
     }
@@ -612,11 +629,65 @@ export default function TemplateDetailPage() {
         <div className="min-h-screen flex items-center justify-center pt-32">
           <div className="text-center">
             <p className="text-muted mb-4">التصميم غير موجود</p>
-            <Link href="/templates" className="text-primary hover:text-accent">
+            <Link href={templatesBrowseUrl()} className="text-primary hover:text-accent">
               العودة للقائمة
             </Link>
           </div>
         </div>
+        <Footer />
+      </>
+    )
+  }
+
+  if (browseMode) {
+    return (
+      <>
+        <Navbar />
+        <main className="pt-32 pb-20 px-4 min-h-screen">
+          <div className="container mx-auto max-w-3xl">
+            <Link
+              href={templatesBrowseUrl()}
+              className="inline-flex items-center gap-2 text-muted hover:text-primary transition-colors mb-6"
+            >
+              <ArrowLeft size={20} />
+              العودة للتصاميم
+            </Link>
+
+            <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-md md:p-8">
+              <div className="text-center mb-6">
+                <h1 className="text-3xl font-bold mb-2">{template.name}</h1>
+                <p className="text-muted">معاينة التصميم</p>
+              </div>
+
+              <div className="mx-auto mb-8 max-w-xs overflow-hidden rounded-2xl border border-gray-200 bg-bg aspect-[9/16]">
+                {template.assets?.thumbUrl || template.assets?.backgroundUrl ? (
+                  <img
+                    src={template.assets?.thumbUrl || template.assets?.backgroundUrl}
+                    alt={template.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-muted">بدون معاينة</div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+                <Link
+                  href="/packages"
+                  className="inline-flex items-center justify-center rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-white hover:bg-accent"
+                >
+                  ابدأ دعوة بهذا التصميم
+                </Link>
+                <Link
+                  href={templatesBrowseUrl()}
+                  className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-semibold hover:bg-gray-50"
+                >
+                  تصفح تصاميم أخرى
+                </Link>
+              </div>
+            </div>
+          </div>
+        </main>
         <Footer />
       </>
     )
@@ -628,7 +699,7 @@ export default function TemplateDetailPage() {
       <main className="pt-32 pb-20 px-4 min-h-screen">
         <div className="container mx-auto max-w-5xl">
           <Link
-            href="/templates"
+            href={`/templates${packageGuests || packagePrice || selectedOccasion ? `?${new URLSearchParams({ ...(selectedOccasion ? { occasion: selectedOccasion } : {}), ...(packageGuests ? { packageGuests } : {}), ...(packagePrice ? { packagePrice } : {}) }).toString()}` : ''}`}
             className="inline-flex items-center gap-2 text-muted hover:text-primary transition-colors mb-6"
           >
             <ArrowLeft size={20} />
