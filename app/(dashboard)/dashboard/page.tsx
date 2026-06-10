@@ -11,12 +11,19 @@ import DashboardNav from '@/components/dashboard/DashboardNav'
 import InvitationHero, { type InvitationHeroStats } from '@/components/dashboard/InvitationHero'
 import ActivityTimeline from '@/components/dashboard/ActivityTimeline'
 import Favorites from '@/components/dashboard/Favorites'
+import QuickActions from '@/components/dashboard/QuickActions'
+import InviteCatalogCard from '@/components/dashboard/InviteCatalogCard'
 import {
   buildUserActivityFeed,
+  isPaidInvite,
   pickFocusInvite,
   type DashboardInviteRow,
   type UserActivityItem,
 } from '@/lib/dashboard/user-dashboard'
+import {
+  resolveDashboardInviteAction,
+  resolveDashboardInviteHref,
+} from '@/lib/dashboard/invite-links'
 
 function getInviteTime(row: DashboardInviteRow) {
   const raw = row?.updatedAt || row?.createdAt
@@ -41,10 +48,19 @@ export default function DashboardPage() {
   const [heroStats, setHeroStats] = useState<InvitationHeroStats | null>(null)
 
   const focusInvite = useMemo(() => pickFocusInvite(invites), [invites])
+  const guestsHref =
+    focusInvite?.id && !String(focusInvite.id).startsWith('draft_')
+      ? `/guests?invId=${encodeURIComponent(focusInvite.id)}`
+      : undefined
 
   const handleSignOut = async () => {
     await signOut()
     router.push('/')
+  }
+
+  const handleToggleFavorite = (templateId: string, liked: boolean) => {
+    setLikedTemplateIds((prev) => (liked ? [...prev, templateId] : prev.filter((id) => id !== templateId)))
+    setFavoriteTemplates((prev) => (liked ? prev : prev.filter((template) => template.id !== templateId)))
   }
 
   useEffect(() => {
@@ -134,7 +150,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user || loading) return
     const focus = pickFocusInvite(invites)
-    if (!focus?.id || String(focus.id).startsWith('draft_')) {
+    if (!focus?.id || String(focus.id).startsWith('draft_') || !isPaidInvite(focus)) {
       setHeroStats(null)
       setActivityItems(buildUserActivityFeed(focus, []))
       setActivityLoading(false)
@@ -174,69 +190,81 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-[#FAFAFC]">
       <DashboardNav subtitle={!loading && name ? `مرحبًا، ${name}` : undefined} onSignOut={handleSignOut} />
 
-      <InvitationHero invite={focusInvite} loading={loading} name={name} stats={heroStats} />
+      <div className="mx-auto max-w-6xl space-y-8 px-4 py-6">
+        <QuickActions guestsHref={guestsHref} />
 
-      {focusInvite ? (
-        <div className="border-t border-[#EFEFF5] bg-white/50">
-          <div className="mx-auto max-w-6xl px-4 py-8">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-muted">إجراءات سريعة</p>
-              <div className="flex flex-wrap gap-2 text-sm">
-                <QuickLink href="/packages" label="دعوة جديدة" />
-                {focusInvite.id && !String(focusInvite.id).startsWith('draft_') ? (
-                  <QuickLink href={`/guests?invId=${encodeURIComponent(focusInvite.id)}`} label="المدعوون" />
-                ) : null}
-                <QuickLink href="/dashboard/invites" label="باقتي" />
-                <QuickLink href="/templates" label="التصاميم" />
-              </div>
-            </div>
+        {focusInvite ? (
+          <InvitationHero invite={focusInvite} loading={loading} name={name} stats={heroStats} />
+        ) : !loading ? (
+          <section className="rounded-[28px] border border-[#EBEBF3] bg-white px-6 py-8 text-center shadow-sm">
+            <p className="mb-2 text-lg font-bold text-textDark">مرحبًا {name || 'بك'}</p>
+            <p className="mb-6 text-sm text-muted">ابدأ باقتك الأولى أو أكمل مسودة موجودة من الأسفل.</p>
+            <Link
+              href="/packages"
+              className="inline-flex rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-white hover:bg-accent"
+            >
+              ابدأ تصميم دعوتك
+            </Link>
+          </section>
+        ) : null}
 
-            <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-              <ActivityTimeline items={activityItems} loading={activityLoading} />
-              <Favorites
-                templates={favoriteTemplates}
-                likedTemplateIds={likedTemplateIds}
-                userId={user?.uid}
-                onToggleLike={(templateId, liked) => {
-                  setLikedTemplateIds((prev) =>
-                    liked ? [...prev, templateId] : prev.filter((id) => id !== templateId)
-                  )
-                  setFavoriteTemplates((prev) =>
-                    liked ? prev : prev.filter((template) => template.id !== templateId)
-                  )
-                }}
-              />
+        <section>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-textDark">باقاتي ودعواتي</h2>
+              <p className="text-xs text-muted">كل مسوداتك ودعواتك السابقة بحالة واضحة</p>
             </div>
+            <Link href="/dashboard/invites" className="text-xs font-semibold text-primary hover:text-accent">
+              عرض الكل
+            </Link>
           </div>
-        </div>
-      ) : (
-        <div className="mx-auto max-w-6xl px-4 pb-12">
+
+          {loading ? (
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="aspect-[9/14] animate-pulse rounded-2xl bg-[#EFEFF5]" />
+              ))}
+            </div>
+          ) : invites.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#E0E0EA] bg-white px-6 py-10 text-center text-sm text-muted">
+              لا توجد دعوات بعد.{' '}
+              <Link href="/packages" className="font-semibold text-primary hover:text-accent">
+                اختر باقة
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+              {invites.slice(0, 8).map((invite) => (
+                <InviteCatalogCard
+                  key={invite.id}
+                  invite={invite}
+                  href={resolveDashboardInviteHref(invite)}
+                  actionLabel={resolveDashboardInviteAction(invite)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {focusInvite && isPaidInvite(focusInvite) ? (
+          <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+            <ActivityTimeline items={activityItems} loading={activityLoading} />
+            <Favorites
+              templates={favoriteTemplates}
+              likedTemplateIds={likedTemplateIds}
+              userId={user?.uid}
+              onToggleLike={handleToggleFavorite}
+            />
+          </div>
+        ) : (
           <Favorites
             templates={favoriteTemplates}
             likedTemplateIds={likedTemplateIds}
             userId={user?.uid}
-            onToggleLike={(templateId, liked) => {
-              setLikedTemplateIds((prev) =>
-                liked ? [...prev, templateId] : prev.filter((id) => id !== templateId)
-              )
-              setFavoriteTemplates((prev) =>
-                liked ? prev : prev.filter((template) => template.id !== templateId)
-              )
-            }}
+            onToggleLike={handleToggleFavorite}
           />
-        </div>
-      )}
+        )}
+      </div>
     </div>
-  )
-}
-
-function QuickLink({ href, label }: { href: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="rounded-full border border-[#E8E8F0] bg-white px-4 py-2 font-semibold text-textDark transition hover:border-primary/25 hover:text-primary"
-    >
-      {label}
-    </Link>
   )
 }

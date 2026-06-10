@@ -9,12 +9,14 @@ import { useAuth } from '@/lib/auth/context'
 import InviteCatalogCard from '@/components/dashboard/InviteCatalogCard'
 import {
   getPackageLimit,
-  isDraftInvite,
   isPaidInvite,
   pickFocusInvite,
   type DashboardInviteRow,
 } from '@/lib/dashboard/user-dashboard'
-import { canProceedAfterWorkshop } from '@/lib/invitations/workflow'
+import {
+  resolveDashboardInviteAction,
+  resolveDashboardInviteHref,
+} from '@/lib/dashboard/invite-links'
 
 function getInviteTime(row: DashboardInviteRow) {
   const raw = row?.updatedAt || row?.createdAt
@@ -23,27 +25,6 @@ function getInviteTime(row: DashboardInviteRow) {
     return (raw as { toDate: () => Date }).toDate().getTime()
   }
   return new Date(String(raw)).getTime() || 0
-}
-
-function resolveInviteHref(invite: DashboardInviteRow): string {
-  if (isDraftInvite(invite)) {
-    const templateId = String(invite?.designId || '').trim()
-    return templateId ? `/templates/${encodeURIComponent(templateId)}` : '/templates'
-  }
-  if (isPaidInvite(invite) && canProceedAfterWorkshop(String(invite?.workflowStatus || invite?.status || ''))) {
-    return `/dashboard/invites/${encodeURIComponent(invite.id)}`
-  }
-  if (isPaidInvite(invite)) {
-    return `/dashboard/invites/${encodeURIComponent(invite.id)}/workshop-status`
-  }
-  return `/checkout`
-}
-
-function resolveInviteAction(invite: DashboardInviteRow): string {
-  if (isDraftInvite(invite)) return 'أكمل التصميم'
-  if (!isPaidInvite(invite)) return 'أكمل الدفع'
-  if (canProceedAfterWorkshop(String(invite?.workflowStatus || invite?.status || ''))) return 'إدارة الدعوة'
-  return 'متابعة الحالة'
 }
 
 export default function InvitesPage() {
@@ -197,8 +178,8 @@ export default function InvitesPage() {
                 <InviteCatalogCard
                   key={invite.id}
                   invite={invite}
-                  href={resolveInviteHref(invite)}
-                  actionLabel={resolveInviteAction(invite)}
+                  href={resolveDashboardInviteHref(invite)}
+                  actionLabel={resolveDashboardInviteAction(invite)}
                 />
               ))}
             </div>

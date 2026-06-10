@@ -180,7 +180,11 @@ export function pickFocusInvite(invites: DashboardInviteRow[]): DashboardInviteR
   const paidInProgress = sorted.find((row) => isPaidInvite(row))
   if (paidInProgress) return paidInProgress
 
-  return null
+  const latestInProgress = sorted[0]
+  if (latestInProgress) return latestInProgress
+
+  const drafts = invites.filter((row) => isDraftInvite(row))
+  return drafts.sort((a, b) => toMillis(b.updatedAt || b.createdAt) - toMillis(a.updatedAt || a.createdAt))[0] || null
 }
 
 export function getPackageLimit(invite: DashboardInviteRow): number {

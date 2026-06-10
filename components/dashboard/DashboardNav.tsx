@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { LogOut } from 'lucide-react'
 
 export default function DashboardNav({
-  title = 'لوحة معلوماتي',
+  title = 'حسابي',
   subtitle,
   onSignOut,
 }: {
