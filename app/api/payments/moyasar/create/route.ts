@@ -10,6 +10,7 @@ import {
   isMoyasarPaymentEnabled,
 } from '@/lib/moyasar/server'
 import { arePaymentsPaused, PAYMENTS_PAUSED_MESSAGE } from '@/lib/payments/payments-paused'
+import { ensureInviteOrderFoundation } from '@/lib/orders/order-code'
 
 export const runtime = 'nodejs'
 
@@ -81,12 +82,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'المبلغ أقل من الحد الأدنى للدفع' }, { status: 400 })
     }
 
+    const orderFoundation = await ensureInviteOrderFoundation(adminDb, invitationId)
+    const orderCode = String(
+      orderFoundation.orderCode ||
+        invite?.orderCode ||
+        invite?.orderNumber ||
+        ''
+    ).trim()
+
     const appBaseUrl = getAppBaseUrl(request.nextUrl.origin)
     const webhookUrl = `${appBaseUrl}/api/webhooks/moyasar`
     const callbackUrl = `${appBaseUrl}/payment/callback?invitationId=${encodeURIComponent(invitationId)}`
+    const paymentDescription = orderCode
+      ? `دعوة بشارة - طلب ${orderCode}`
+      : 'دعوة بشارة'
 
     console.info('[MOYASAR_CREATE_START]', {
       invitationId,
+      orderCode,
       amountRaw,
       amountHalalas,
       userId: uid,
@@ -96,12 +109,13 @@ export async function POST(request: NextRequest) {
     const invoice = await createMoyasarInvoice({
       amount: amountHalalas,
       currency: 'SAR',
-      description: `دعوة بشارة - ${invitationId}`,
+      description: paymentDescription,
       callback_url: webhookUrl,
       success_url: callbackUrl,
       back_url: `${appBaseUrl}/checkout?payment=cancelled&invitationId=${encodeURIComponent(invitationId)}`,
       metadata: {
         invitationId,
+        orderCode: orderCode || undefined,
         userId: uid,
       },
     })
@@ -129,6 +143,7 @@ export async function POST(request: NextRequest) {
       payment_url: invoice.url,
       invoiceId: invoice.id,
       invitationId,
+      orderCode: orderCode || null,
       amountHalalas,
       currency: 'SAR',
     })

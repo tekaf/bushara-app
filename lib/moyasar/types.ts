@@ -20,6 +20,7 @@ export type MoyasarInvoiceStatus =
 
 export interface MoyasarMetadata {
   invitationId?: string
+  orderCode?: string
   userId?: string
   [key: string]: string | undefined
 }
