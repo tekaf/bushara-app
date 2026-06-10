@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { addDoc, collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore'
 import Navbar from '@/components/ui/Navbar'
 import Footer from '@/components/ui/Footer'
+import PremiumGuestList, { type PremiumGuestRow } from '@/components/guests/PremiumGuestList'
 import { useAuth } from '@/lib/auth/context'
 import { db } from '@/lib/firebase/config'
 import { INVITE_WORKFLOW_STATUS, canProceedAfterWorkshop } from '@/lib/invitations/workflow'
@@ -18,6 +19,9 @@ type Invitee = {
   status: 'pending' | 'sent' | 'accepted' | 'declined'
   assignedToLabel?: string
   rsvpToken?: string
+  lastSendAt?: string | null
+  sendAttemptCount?: number
+  lastActivityAt?: string | null
 }
 
 type CheckoutDraft = {
@@ -50,6 +54,7 @@ function isDraftInviteId(value: string) {
 
 function isPaidInvite(invite: any) {
   return (
+    invite?.paid === true ||
     invite?.paymentStatus === 'paid' ||
     invite?.status === 'paid' ||
     invite?.inviteLockedAfterPayment === true
@@ -79,6 +84,7 @@ function GuestsPageContent() {
   const [sendingNow, setSendingNow] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'sent' | 'accepted' | 'declined'>('all')
+  const [sortBy, setSortBy] = useState<'status' | 'name' | 'recent'>('recent')
   const [editingId, setEditingId] = useState('')
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
@@ -101,6 +107,15 @@ function GuestsPageContent() {
   const inviteStorageKey = `${ACTIVE_INVITE_ID_PREFIX}:${draft?.templateId || 'default'}`
   const quickDraftKey = `${QUICK_ADD_DRAFT_PREFIX}:${draft?.templateId || 'default'}`
 
+  function toIsoFromUnknown(value: unknown): string | null {
+    if (!value) return null
+    if (typeof (value as { toDate?: () => Date })?.toDate === 'function') {
+      return (value as { toDate: () => Date }).toDate().toISOString()
+    }
+    const parsed = new Date(String(value))
+    return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null
+  }
+
   const filteredInvitees = useMemo(() => {
     const q = search.trim().toLowerCase()
     const filtered = invitees.filter((row) => {
@@ -115,11 +130,44 @@ function GuestsPageContent() {
       declined: 3,
     }
     return filtered.sort((a, b) => {
+      if (sortBy === 'name') {
+        return (a.name || a.phoneLocal).localeCompare(b.name || b.phoneLocal, 'ar')
+      }
+      if (sortBy === 'recent') {
+        const aTs = new Date(a.lastActivityAt || a.lastSendAt || 0).getTime()
+        const bTs = new Date(b.lastActivityAt || b.lastSendAt || 0).getTime()
+        return bTs - aTs
+      }
       const priorityDiff = statusPriority[a.status] - statusPriority[b.status]
       if (priorityDiff !== 0) return priorityDiff
       return a.phoneLocal.localeCompare(b.phoneLocal, 'ar')
     })
-  }, [invitees, search, statusFilter])
+  }, [invitees, search, sortBy, statusFilter])
+
+  const premiumRows: PremiumGuestRow[] = useMemo(
+    () =>
+      filteredInvitees.map((row) => ({
+        id: row.id,
+        name: row.name,
+        phoneLocal: row.phoneLocal,
+        status: row.status,
+        lastSendAt: row.lastSendAt,
+        sendAttemptCount: row.sendAttemptCount,
+        lastActivityAt: row.lastActivityAt,
+      })),
+    [filteredInvitees]
+  )
+
+  const listStats = useMemo(
+    () => ({
+      total: invitees.length,
+      accepted: invitees.filter((r) => r.status === 'accepted').length,
+      declined: invitees.filter((r) => r.status === 'declined').length,
+      pending: invitees.filter((r) => r.status === 'pending').length,
+      sent: invitees.filter((r) => r.status === 'sent').length,
+    }),
+    [invitees]
+  )
 
   const sendEligibleCount = useMemo(
     () =>
@@ -260,15 +308,25 @@ function GuestsPageContent() {
       if (!response.ok) throw new Error(data?.error || 'تعذر تحميل المدعوين')
       const rows = (Array.isArray(data?.guests) ? data.guests : []) as any[]
       setInvitees(
-        rows.map((row) => ({
-          id: String(row.id),
-          name: String(row.name || ''),
-          phoneLocal: String(row.phoneLocal || ''),
-          phoneE164: String(row.phoneE164 || ''),
-          status: (row.status || 'pending') as Invitee['status'],
-          assignedToLabel: row.assignedToLabel || '',
-          rsvpToken: row.rsvpToken || '',
-        }))
+        rows.map((row) => {
+          const lastSendAt = toIsoFromUnknown(row.lastSendAt)
+          const lastActivityAt =
+            toIsoFromUnknown(row.rsvpRespondedAt) ||
+            toIsoFromUnknown(row.updatedAt) ||
+            toIsoFromUnknown(row.createdAt)
+          return {
+            id: String(row.id),
+            name: String(row.name || ''),
+            phoneLocal: String(row.phoneLocal || ''),
+            phoneE164: String(row.phoneE164 || ''),
+            status: (row.status || 'pending') as Invitee['status'],
+            assignedToLabel: row.assignedToLabel || '',
+            rsvpToken: row.rsvpToken || '',
+            lastSendAt,
+            sendAttemptCount: Number(row.sendAttemptCount || 0),
+            lastActivityAt,
+          }
+        })
       )
       setQuota({
         total: Number(data?.quota?.total || packageLimit || 0),
@@ -886,197 +944,33 @@ function GuestsPageContent() {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="rounded-2xl bg-white p-6 shadow-lg border border-gray-100"
+                    className="rounded-[28px] border border-[#EBEBF3] bg-white p-6 shadow-[0_20px_60px_rgba(31,36,51,0.05)] md:p-8"
                   >
-                    <div className="mb-4 flex flex-wrap gap-3 items-center justify-between">
-                      <h2 className="text-xl font-bold">قائمة المدعويين</h2>
-                      <span className="text-sm text-muted">{invitees.length} مدعو</span>
-                    </div>
-                    <p className="mb-4 text-sm text-muted leading-6">
-                      هنا يمكنك ترتيب ومراجعة قائمة المدعويين، وتصفية الحالات، وتعديل بيانات أي مدعو قبل
-                      الإرسال.
-                    </p>
-                    <div className="mb-4 rounded-xl border border-violet-100 bg-violet-50/60 p-4">
-                      <div className="mb-3 grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
-                        <div className="rounded-lg bg-white p-2 text-center">
-                          <p className="text-xs text-muted">إجمالي المدعويين</p>
-                          <p className="text-base font-bold text-textDark">{guestStatusStats.total}</p>
-                        </div>
-                        <div className="rounded-lg bg-white p-2 text-center">
-                          <p className="text-xs text-muted">قبلوا</p>
-                          <p className="text-base font-bold text-green-700">{guestStatusStats.accepted}</p>
-                        </div>
-                        <div className="rounded-lg bg-white p-2 text-center">
-                          <p className="text-xs text-muted">رفضوا</p>
-                          <p className="text-base font-bold text-red-700">{guestStatusStats.declined}</p>
-                        </div>
-                        <div className="rounded-lg bg-white p-2 text-center">
-                          <p className="text-xs text-muted">بانتظار الرد</p>
-                          <p className="text-base font-bold text-amber-700">{guestStatusStats.waiting}</p>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 gap-4 rounded-xl bg-white p-3 md:grid-cols-[160px_1fr] md:items-center">
-                        <div className="mx-auto">
-                          <div
-                            className="relative h-32 w-32 rounded-full transition-all duration-500"
-                            style={statusDonutStyle}
-                          >
-                            <div className="absolute inset-5 rounded-full bg-white shadow-inner" />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="text-center leading-tight">
-                                <p className="text-[10px] text-muted">الإجمالي</p>
-                                <p className="text-lg font-bold text-textDark">{guestStatusStats.total}</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="rounded-lg border border-violet-100 bg-violet-50/60 p-3">
-                          <p className="text-sm text-indigo-900">آخر مدعو تمت إضافته:</p>
-                          {latestAddedGuest ? (
-                            <div className="mt-2 rounded-md bg-white p-2">
-                              <p className="text-sm font-bold text-textDark">
-                                {latestAddedGuest.name || 'بدون اسم'}
-                              </p>
-                              <p className="text-xs text-muted">{latestAddedGuest.phoneLocal}</p>
-                            </div>
-                          ) : (
-                            <p className="mt-2 text-xs text-muted">
-                              لا يوجد مدعوين مضافين حتى الآن.
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="بحث بالاسم أو الرقم"
-                        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary/25"
-                      />
-                      <div className="flex gap-2 flex-wrap">
-                        {(['all', 'pending', 'accepted', 'declined'] as const).map((f) => (
-                          <button
-                            key={f}
-                            type="button"
-                            onClick={() => setStatusFilter(f)}
-                            className={`rounded-lg px-3 py-2 text-sm font-medium ${
-                              statusFilter === f ? 'bg-primary text-white' : 'bg-gray-100 hover:bg-gray-200'
-                            }`}
-                          >
-                            {f === 'all'
-                              ? 'الكل'
-                              : f === 'pending'
-                              ? 'بانتظار الرد'
-                              : f === 'accepted'
-                              ? 'قبلوا'
-                              : 'رفضوا'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {loadingGuests ? (
-                      <p className="text-muted">جارٍ تحميل القائمة...</p>
-                    ) : filteredInvitees.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-muted">
-                        ابدأ بلصق أول رقم ✨
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {filteredInvitees.map((row) => (
-                          <motion.div
-                            whileHover={{ y: -2 }}
-                            key={row.id}
-                            className="rounded-xl border border-gray-200 p-3"
-                          >
-                            {editingId === row.id ? (
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                <input
-                                  value={editPhone}
-                                  onChange={(e) => setEditPhone(e.target.value)}
-                                  className="rounded-lg border border-gray-300 px-3 py-2"
-                                />
-                                <input
-                                  value={editName}
-                                  onChange={(e) => setEditName(e.target.value)}
-                                  className="rounded-lg border border-gray-300 px-3 py-2"
-                                  placeholder="اسم (اختياري)"
-                                />
-                                <div className="flex gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={handleSaveEdit}
-                                    className="rounded-lg bg-primary px-3 py-2 text-white text-sm"
-                                  >
-                                    حفظ
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingId('')}
-                                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                                  >
-                                    إلغاء
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="font-semibold">{row.phoneLocal}</p>
-                                  <p className="text-sm text-muted">{row.name || 'بدون اسم'}</p>
-                                  <p className="text-xs text-muted">أضافه: {row.assignedToLabel || 'أنت'}</p>
-                                  {row.rsvpToken && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const base = window.location.origin
-                                        const link = `${base}/rsvp/${row.rsvpToken}?inv=${encodeURIComponent(inviteId)}`
-                                        navigator.clipboard.writeText(link)
-                                        setToast({ show: true, text: 'تم نسخ رابط RSVP', kind: 'success' })
-                                      }}
-                                      className="mt-1 text-xs text-primary underline"
-                                    >
-                                      نسخ رابط RSVP
-                                    </button>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs">
-                                    {row.status === 'pending'
-                                      ? 'بانتظار الرد'
-                                      : row.status === 'sent'
-                                      ? 'تم الإرسال'
-                                      : row.status === 'accepted'
-                                      ? 'قبل الدعوة'
-                                      : 'رفض الدعوة'}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStartEdit(row)}
-                                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
-                                  >
-                                    تعديل
-                                  </button>
-                                  {row.status === 'declined' ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDelete(row.id)}
-                                      className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
-                                    >
-                                      حذف
-                                    </button>
-                                  ) : (
-                                    <span className="rounded-md border border-gray-200 px-3 py-1.5 text-xs text-muted">
-                                      الحذف متاح للرافضين فقط
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </motion.div>
-                        ))}
-                      </div>
-                    )}
+                    <h2 className="mb-1 text-xl font-bold text-textDark">قائمة المدعوين</h2>
+                    <p className="mb-6 text-sm text-muted">بحث، تصفية، وفرز حسب الحالة أو آخر نشاط.</p>
+                    <PremiumGuestList
+                      rows={premiumRows}
+                      loading={loadingGuests}
+                      search={search}
+                      onSearchChange={setSearch}
+                      statusFilter={statusFilter}
+                      onStatusFilterChange={setStatusFilter}
+                      sortBy={sortBy}
+                      onSortChange={setSortBy}
+                      stats={listStats}
+                      editingId={editingId}
+                      editName={editName}
+                      editPhone={editPhone}
+                      onEditNameChange={setEditName}
+                      onEditPhoneChange={setEditPhone}
+                      onStartEdit={(row) => {
+                        const full = invitees.find((g) => g.id === row.id)
+                        if (full) handleStartEdit(full)
+                      }}
+                      onSaveEdit={handleSaveEdit}
+                      onCancelEdit={() => setEditingId('')}
+                      onDelete={handleDelete}
+                    />
                   </motion.section>
                 )}
 
