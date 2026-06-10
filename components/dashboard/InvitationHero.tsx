@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { CalendarDays, Sparkles } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { CalendarDays, MapPin, Sparkles } from 'lucide-react'
 import type { DashboardInviteRow } from '@/lib/dashboard/user-dashboard'
 import {
   canSendInvitations,
@@ -13,50 +14,67 @@ import {
   getOccasionLabel,
   getViewInviteHref,
   getWorkflowBadgeTone,
-  isDraftInvite,
+  isApprovedInvite,
+  isPaidInvite,
 } from '@/lib/dashboard/user-dashboard'
+
+export type InvitationHeroStats = {
+  accepted: number
+  declined: number
+  pending: number
+  sent: number
+}
 
 type InvitationHeroProps = {
   invite: DashboardInviteRow | null
   loading?: boolean
   name?: string
+  stats?: InvitationHeroStats | null
 }
 
-export default function InvitationHero({ invite, loading, name }: InvitationHeroProps) {
+export default function InvitationHero({ invite, loading, name, stats }: InvitationHeroProps) {
   if (loading) {
     return (
-      <section className="animate-admin-fade-in overflow-hidden rounded-[28px] border border-violet-100/80 bg-white/70 p-6 shadow-[0_20px_60px_rgba(107,78,255,0.08)] backdrop-blur md:p-8">
-        <div className="flex flex-col gap-6 lg:flex-row">
-          <div className="order-1 h-[360px] animate-pulse rounded-[24px] bg-violet-50/80 lg:order-2 lg:h-[420px] lg:w-[min(340px,38%)] lg:shrink-0" />
-          <div className="order-2 flex-1 space-y-4 lg:order-1">
-            <div className="h-4 w-32 animate-pulse rounded bg-gray-100" />
-            <div className="h-10 w-3/4 animate-pulse rounded bg-gray-100" />
-            <div className="h-5 w-1/2 animate-pulse rounded bg-gray-100" />
-            <div className="h-12 w-40 animate-pulse rounded-full bg-gray-100" />
+      <div className="mx-auto max-w-6xl px-4 py-8 lg:py-12">
+        <div className="grid min-h-[420px] animate-pulse gap-8 lg:grid-cols-[1fr_minmax(260px,360px)] lg:min-h-[520px]">
+          <div className="space-y-5 lg:order-1">
+            <div className="h-4 w-28 rounded-full bg-[#EFEFF5]" />
+            <div className="h-14 w-4/5 rounded-2xl bg-[#EFEFF5]" />
+            <div className="h-5 w-2/5 rounded-full bg-[#F5F5FA]" />
+            <div className="h-10 w-32 rounded-full bg-[#EFEFF5]" />
           </div>
+          <div className="rounded-[32px] bg-[#EFEFF5] lg:order-2" />
         </div>
-      </section>
+      </div>
     )
   }
 
   if (!invite) {
     return (
-      <section className="animate-admin-fade-in relative overflow-hidden rounded-[28px] border border-violet-100/80 bg-gradient-to-br from-white via-violet-50/40 to-white p-8 text-center shadow-[0_20px_60px_rgba(107,78,255,0.06)] md:p-12">
-        <div className="pointer-events-none absolute -left-16 -top-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 -right-10 h-56 w-56 rounded-full bg-accent/10 blur-3xl" />
-        <p className="mb-2 text-sm font-medium text-muted">مرحبًا {name || 'بك'}</p>
-        <h2 className="mb-3 text-2xl font-bold text-textDark md:text-3xl">ابدأ دعوتك الأولى</h2>
-        <p className="mx-auto mb-8 max-w-md text-sm leading-7 text-muted">
-          صمّم دعوة فاخرة خلال دقائق، وستظهر هنا معاينة حية وحالة واضحة لكل خطوة.
-        </p>
-        <Link
-          href="/packages"
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition hover:bg-accent"
+      <div className="mx-auto max-w-6xl px-4 py-10 lg:py-16">
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative overflow-hidden rounded-[36px] border border-[#E8E8F0] bg-gradient-to-br from-white via-[#FBFAFF] to-[#F3F0FF] px-8 py-16 text-center shadow-[0_40px_100px_rgba(107,78,255,0.08)]"
         >
-          <Sparkles className="h-4 w-4" />
-          صمم دعوة جديدة
-        </Link>
-      </section>
+          <div className="pointer-events-none absolute -left-24 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-28 -right-16 h-72 w-72 rounded-full bg-accent/10 blur-3xl" />
+          <p className="relative mb-2 text-sm font-medium text-muted">مرحبًا {name || 'بك'}</p>
+          <h1 className="relative mb-4 text-3xl font-bold tracking-tight text-textDark md:text-4xl">
+            دعوتك تبدأ من هنا
+          </h1>
+          <p className="relative mx-auto mb-10 max-w-lg text-sm leading-8 text-muted">
+            عند إتمام الدفع واعتماد التصميم، ستظهر دعوتك هنا بمعاينة حية وحالة واضحة لكل خطوة.
+          </p>
+          <Link
+            href="/packages"
+            className="relative inline-flex items-center gap-2 rounded-2xl bg-primary px-8 py-4 text-sm font-semibold text-white shadow-[0_20px_50px_rgba(107,78,255,0.28)] transition hover:bg-accent"
+          >
+            <Sparkles className="h-4 w-4" />
+            ابدأ تصميم دعوتك
+          </Link>
+        </motion.section>
+      </div>
     )
   }
 
@@ -67,108 +85,162 @@ export default function InvitationHero({ invite, loading, name }: InvitationHero
   const viewHref = getViewInviteHref(invite)
   const sendHref = `/guests?invId=${encodeURIComponent(invite.id)}`
   const canSend = canSendInvitations(invite)
-  const isDraft = isDraftInvite(invite)
   const viewExternal = viewHref.startsWith('http')
+  const location = String(invite.locationName || '').trim()
+  const approved = isApprovedInvite(invite)
+  const paid = isPaidInvite(invite)
 
   return (
-    <section className="animate-admin-fade-in relative overflow-hidden rounded-[28px] border border-violet-100/70 bg-gradient-to-br from-white via-white to-violet-50/30 p-5 shadow-[0_24px_64px_rgba(46,46,56,0.07)] backdrop-blur md:p-8">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-primary/5 to-transparent" />
+    <div className="mx-auto max-w-6xl px-4 py-6 lg:py-10">
+      <motion.section
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: 'easeOut' }}
+        className="relative overflow-hidden rounded-[36px] border border-[#EBEBF3] bg-white shadow-[0_32px_90px_rgba(31,36,51,0.07)]"
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_15%,rgba(124,108,255,0.07),transparent_42%),radial-gradient(circle_at_10%_90%,rgba(139,92,246,0.05),transparent_38%)]" />
 
-      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-10">
-        {/* Preview — top on mobile, visual left on desktop (RTL) */}
-        <div className="order-1 mx-auto w-full max-w-[280px] shrink-0 lg:order-2 lg:mx-0 lg:max-w-none lg:w-[min(340px,38%)]">
-          <Link
-            href={manageHref}
-            className="group block overflow-hidden rounded-[24px] border border-white/80 bg-white p-2 shadow-[0_16px_48px_rgba(107,78,255,0.14)] ring-1 ring-violet-100/80 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_56px_rgba(107,78,255,0.18)]"
-          >
-            <div className="relative aspect-[9/16] overflow-hidden rounded-[18px] bg-gradient-to-br from-primarySoft/60 to-white">
-              {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt={getCoupleDisplayName(invite)}
-                  className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
-                />
+        <div className="relative grid gap-8 p-6 md:p-10 lg:min-h-[min(72vh,680px)] lg:grid-cols-[1fr_minmax(280px,380px)] lg:items-center lg:gap-12 lg:p-12">
+          {/* Details — visual right in RTL (first column) */}
+          <div className="flex flex-col justify-center lg:order-1">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-muted/90">
+              {approved && paid ? 'دعوتك المعتمدة' : paid ? 'دعوتك الحالية' : 'مسودة الدعوة'}
+            </p>
+
+            <h1 className="mb-6 text-[2rem] font-bold leading-[1.12] tracking-tight text-[#1A1A24] sm:text-[2.75rem] lg:text-[3.25rem]">
+              {getCoupleDisplayName(invite)}
+            </h1>
+
+            <dl className="mb-8 space-y-3 border-s border-[#F0F0F6] ps-0 lg:space-y-3.5">
+              <MetaRow icon={CalendarDays} label="التاريخ" value={formatInviteDate(invite.date, invite.time)} />
+              <MetaRow label="نوع المناسبة" value={getOccasionLabel(invite.selectedOccasion || invite.occasionType)} />
+              {location ? <MetaRow icon={MapPin} label="المدينة" value={location} /> : null}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <dt className="sr-only">الحالة</dt>
+                <dd>
+                  <span
+                    className={[
+                      'inline-flex items-center rounded-full border px-4 py-1.5 text-sm font-semibold',
+                      badge.className,
+                    ].join(' ')}
+                  >
+                    {workflowStatus ? badge.label : getCustomerWorkflowLabel(workflowStatus)}
+                  </span>
+                </dd>
+              </div>
+            </dl>
+
+            {stats && stats.accepted + stats.declined + stats.pending > 0 ? (
+              <div className="mb-8 grid grid-cols-3 gap-2 rounded-2xl border border-[#F0F0F6] bg-[#FAFAFC] p-3 sm:max-w-md">
+                <StatPill label="حضور" value={stats.accepted} tone="text-emerald-700" />
+                <StatPill label="اعتذار" value={stats.declined} tone="text-rose-700" />
+                <StatPill label="بانتظار" value={stats.pending} tone="text-amber-700" />
+              </div>
+            ) : null}
+
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+              <Link
+                href={manageHref}
+                className="inline-flex h-12 items-center justify-center rounded-2xl bg-[#1A1A24] px-6 text-sm font-semibold text-white shadow-[0_12px_32px_rgba(26,26,36,0.18)] transition hover:bg-primary"
+              >
+                إدارة الدعوة
+              </Link>
+              {viewExternal ? (
+                <a
+                  href={viewHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#E4E4EC] bg-white px-6 text-sm font-semibold text-textDark transition hover:border-primary/30"
+                >
+                  عرض الدعوة
+                </a>
               ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-                  <Sparkles className="h-8 w-8 text-primary/60" />
-                  <p className="text-sm font-medium text-muted">معاينة الدعوة قريبًا</p>
-                </div>
+                <Link
+                  href={viewHref}
+                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#E4E4EC] bg-white px-6 text-sm font-semibold text-textDark transition hover:border-primary/30"
+                >
+                  عرض الدعوة
+                </Link>
               )}
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
+              {canSend ? (
+                <Link
+                  href={sendHref}
+                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-primary/15 bg-primarySoft/40 px-6 text-sm font-semibold text-primary transition hover:bg-primarySoft"
+                >
+                  إرسال الدعوات
+                </Link>
+              ) : (
+                <span className="inline-flex h-12 items-center justify-center rounded-2xl border border-dashed border-[#E0E0EA] px-6 text-sm text-muted">
+                  الإرسال بعد الاعتماد
+                </span>
+              )}
             </div>
-          </Link>
-        </div>
-
-        {/* Info — right on desktop RTL */}
-        <div className="order-2 flex flex-1 flex-col lg:order-1">
-          <p className="mb-3 text-sm font-medium text-muted">
-            {isDraft ? 'مسودة دعوتك' : 'دعوتك الحالية'}
-          </p>
-
-          <h2 className="mb-4 text-3xl font-bold leading-tight tracking-tight text-textDark md:text-4xl lg:text-[2.35rem]">
-            {getCoupleDisplayName(invite)}
-          </h2>
-
-          <div className="mb-5 flex flex-wrap items-center gap-3 text-sm text-muted">
-            <span className="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-white/80 px-3 py-1.5">
-              <CalendarDays className="h-4 w-4 text-primary" />
-              {formatInviteDate(invite.date, invite.time)}
-            </span>
-            <span className="rounded-full border border-gray-100 bg-white/80 px-3 py-1.5 font-medium text-textDark">
-              {getOccasionLabel(invite.selectedOccasion || invite.occasionType)}
-            </span>
           </div>
 
-          <div className="mb-6">
-            <span
-              className={[
-                'inline-flex items-center rounded-full border px-3.5 py-1.5 text-sm font-semibold',
-                badge.className,
-              ].join(' ')}
-            >
-              {workflowStatus ? badge.label : isDraft ? 'مسودة' : getCustomerWorkflowLabel(workflowStatus)}
-            </span>
-          </div>
-
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+          {/* Preview — visual left in RTL (second column), clickable → manage */}
+          <div className="flex items-center justify-center lg:order-2">
             <Link
               href={manageHref}
-              className="inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-md shadow-primary/15 transition hover:bg-accent"
+              className="group relative block w-full max-w-[300px] transition duration-500 hover:-translate-y-1 lg:max-w-none"
             >
-              إدارة الدعوة
+              <div className="absolute -inset-3 rounded-[40px] bg-gradient-to-br from-primary/15 via-transparent to-accent/10 opacity-0 blur-2xl transition group-hover:opacity-100" />
+              <div className="relative overflow-hidden rounded-[32px] border border-[#ECECF2] bg-[#FAFAFC] p-2.5 shadow-[0_28px_70px_rgba(107,78,255,0.14)] ring-1 ring-white">
+                <div className="relative aspect-[3/4] overflow-hidden rounded-[26px] bg-gradient-to-b from-[#F5F3FF] to-white sm:aspect-[9/14]">
+                  {previewUrl ? (
+                    <img
+                      src={previewUrl}
+                      alt={getCoupleDisplayName(invite)}
+                      className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.03]"
+                    />
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                      <Sparkles className="h-10 w-10 text-primary/40" />
+                      <p className="px-6 text-sm font-medium text-muted">معاينة الدعوة قيد التجهيز</p>
+                    </div>
+                  )}
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/30 to-transparent opacity-0 transition group-hover:opacity-100" />
+                </div>
+              </div>
+              <p className="mt-3 text-center text-xs font-medium text-muted transition group-hover:text-primary">
+                اضغط لإدارة الدعوة
+              </p>
             </Link>
-            {viewExternal ? (
-              <a
-                href={viewHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center rounded-2xl border border-gray-200 bg-white/90 px-5 py-3 text-sm font-semibold text-textDark transition hover:border-primary/30 hover:bg-violet-50/50"
-              >
-                عرض الدعوة
-              </a>
-            ) : (
-              <Link
-                href={viewHref}
-                className="inline-flex items-center justify-center rounded-2xl border border-gray-200 bg-white/90 px-5 py-3 text-sm font-semibold text-textDark transition hover:border-primary/30 hover:bg-violet-50/50"
-              >
-                عرض الدعوة
-              </Link>
-            )}
-            {canSend ? (
-              <Link
-                href={sendHref}
-                className="inline-flex items-center justify-center rounded-2xl border border-primary/20 bg-primarySoft/50 px-5 py-3 text-sm font-semibold text-primary transition hover:bg-primarySoft"
-              >
-                إرسال الدعوات
-              </Link>
-            ) : (
-              <span className="inline-flex items-center justify-center rounded-2xl border border-dashed border-gray-200 px-5 py-3 text-sm font-medium text-muted">
-                الإرسال يتاح بعد الاعتماد
-              </span>
-            )}
           </div>
         </div>
+      </motion.section>
+    </div>
+  )
+}
+
+function MetaRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon?: typeof CalendarDays
+  label: string
+  value: string
+}) {
+  return (
+    <div className="flex items-start gap-3 text-sm">
+      {Icon ? (
+        <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary/70" aria-hidden />
+      ) : (
+        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/50" aria-hidden />
+      )}
+      <div>
+        <dt className="text-xs font-medium text-muted">{label}</dt>
+        <dd className="mt-0.5 font-semibold text-[#2E2E38]">{value}</dd>
       </div>
-    </section>
+    </div>
+  )
+}
+
+function StatPill({ label, value, tone }: { label: string; value: number; tone: string }) {
+  return (
+    <div className="text-center">
+      <p className={`text-xl font-bold ${tone}`}>{value}</p>
+      <p className="text-[11px] text-muted">{label}</p>
+    </div>
   )
 }
