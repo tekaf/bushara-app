@@ -14,6 +14,14 @@ import { INVITE_REVIEW_STATUS, INVITE_WORKFLOW_STATUS } from '@/lib/invitations/
 import { sanitizeForFirestore } from '@/lib/firebase/sanitize-doc'
 import { isMoyasarCheckoutAvailable } from '@/lib/moyasar/client'
 import { arePaymentsPaused, PAYMENTS_PAUSED_MESSAGE } from '@/lib/payments/payments-paused'
+import SaudiPhoneInput from '@/components/ui/SaudiPhoneInput'
+import { normalizeSaudiPhone } from '@/lib/phone/saudi-phone'
+
+const CHECKOUT_LOGIN_NEXT = '/checkout'
+
+function goToCheckoutLogin(router: ReturnType<typeof useRouter>) {
+  router.push(`/login?next=${encodeURIComponent(CHECKOUT_LOGIN_NEXT)}`)
+}
 
 const TERMINAL_WORKFLOW_STATUSES = new Set<string>([
   INVITE_WORKFLOW_STATUS.SENT,
@@ -40,30 +48,6 @@ type CheckoutDraft = {
 
 type TimePeriod = 'AM' | 'PM'
 type CheckoutModalStage = 'otp' | 'payment'
-
-function normalizeArabicDigits(value: string): string {
-  const arabicNums = '٠١٢٣٤٥٦٧٨٩'
-  return value.replace(/[٠-٩]/g, (d) => String(arabicNums.indexOf(d)))
-}
-
-function normalizeSaudiPhone(raw: string): { ok: true; local: string; e164: string } | { ok: false; reason: string } {
-  const normalized = normalizeArabicDigits(raw).replace(/[^\d+]/g, '')
-  if (!normalized) return { ok: false, reason: 'أدخل رقم الجوال' }
-
-  let candidate = normalized
-  if (candidate.startsWith('00966')) candidate = `+${candidate.slice(2)}`
-  if (candidate.startsWith('966')) candidate = `+${candidate}`
-
-  if (/^5\d{8}$/.test(candidate)) candidate = `0${candidate}`
-  if (/^05\d{8}$/.test(candidate)) {
-    return { ok: true, local: candidate, e164: `+966${candidate.slice(1)}` }
-  }
-  if (/^\+9665\d{8}$/.test(candidate)) {
-    return { ok: true, local: `0${candidate.slice(4)}`, e164: candidate }
-  }
-
-  return { ok: false, reason: 'رقم الجوال غير صحيح' }
-}
 
 const EXPECTED_OTP_HOSTNAMES = new Set(['localhost', '127.0.0.1', 'busharh.com', 'www.busharh.com'])
 
@@ -410,19 +394,40 @@ function CheckoutPageContent() {
     }
   }
 
-  const handleOpenPhoneVerifyModal = () => {
+  const handleOpenPhoneVerifyModal = async () => {
     if (authLoading) return
     if (!user) {
-      alert('سجل الدخول أولاً لإكمال الدفع والمتابعة.')
-      router.push('/login')
+      goToCheckoutLogin(router)
       return
     }
+
+    let profileVerified = phoneVerified
+    try {
+      const userSnap = await getDoc(doc(db, 'users', user.uid))
+      if (userSnap.exists()) {
+        const userData = userSnap.data() as Record<string, unknown>
+        const profilePhoneRaw = String(userData?.phoneNumber || userData?.customerPhoneE164 || '').trim()
+        if (Boolean(userData?.phoneVerified) && profilePhoneRaw) {
+          const parsed = normalizeSaudiPhone(profilePhoneRaw)
+          if (parsed.ok) {
+            profileVerified = true
+            setPhoneVerified(true)
+            setVerifiedPhoneE164(parsed.e164)
+            setVerifiedPhoneLocal(parsed.local)
+            setPhoneInput(parsed.local)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed refreshing phone verification profile:', error)
+    }
+
     setShowPhoneVerifyModal(true)
     setOtpError('')
     setOtpStatus('')
     setPaymentError('')
     setGatewayNotice('')
-    setCheckoutModalStage(phoneVerified ? 'payment' : 'otp')
+    setCheckoutModalStage(profileVerified ? 'payment' : 'otp')
     logOtpDiagnostics('modal_opened')
   }
 
@@ -467,7 +472,7 @@ function CheckoutPageContent() {
     if (authLoading) return
     if (!user) {
       alert('سجل الدخول أولاً لإكمال التحقق قبل الدفع.')
-      router.push('/login')
+      goToCheckoutLogin(router)
       return
     }
 
@@ -513,7 +518,7 @@ function CheckoutPageContent() {
   const handleVerifyOtp = async (): Promise<boolean> => {
     if (!user) {
       alert('سجل الدخول أولاً لإكمال التحقق قبل الدفع.')
-      router.push('/login')
+      goToCheckoutLogin(router)
       return false
     }
     if (!otpVerificationId || !pendingOtpPhoneE164) {
@@ -572,7 +577,7 @@ function CheckoutPageContent() {
     if (authLoading) return
     if (!user) {
       alert('سجل الدخول أولاً لإكمال الدفع والمتابعة للمدعوين.')
-      router.push('/login')
+      goToCheckoutLogin(router)
       return
     }
     if (!normalizedPhone.ok) {
@@ -750,7 +755,7 @@ function CheckoutPageContent() {
 
     if (!user) {
       alert('سجل الدخول أولاً لإكمال الدفع.')
-      router.push('/login')
+      goToCheckoutLogin(router)
       return
     }
 
@@ -811,7 +816,7 @@ function CheckoutPageContent() {
     if (authLoading) return
     if (!user) {
       alert('سجل الدخول أولاً لإكمال الدفع والمتابعة للمدعوين.')
-      router.push('/login')
+      goToCheckoutLogin(router)
       return
     }
     const effectivePhoneE164 = overridePhone?.phoneE164 || verifiedPhoneE164
@@ -1121,7 +1126,7 @@ function CheckoutPageContent() {
   const handleStartPaymentFlow = async (overridePhone?: { phoneE164: string; phoneLocal: string }) => {
     if (!user) {
       alert('سجل الدخول أولاً لإكمال الدفع.')
-      router.push('/login')
+      goToCheckoutLogin(router)
       return
     }
     const effectivePhoneE164 = overridePhone?.phoneE164 || verifiedPhoneE164
@@ -1329,13 +1334,13 @@ function CheckoutPageContent() {
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-xl font-bold text-textDark">
-                  {isOtpStage ? 'توثيق رقم الجوال' : 'خيارات الدفع'}
+                  {isOtpStage ? 'التحقق من رقم الجوال' : 'خيارات الدفع'}
                 </h3>
                 <p className="mt-1 text-sm text-muted">
                   {isOtpStage
                     ? isLocalPhoneVerifyBypassed
                       ? 'وضع محلي: أدخل رقم الجوال وسيتم حفظه مباشرة بدون OTP.'
-                      : 'الخطوة 1 من 2: أدخل رقمك وتحقق بالرمز.'
+                      : 'أدخل رقم هاتفك للحصول على رمز التحقق — مرة واحدة فقط لحسابك.'
                     : 'الخطوة 2 من 2: اختر وسيلة الدفع أو أدخل كود التجاوز.'}
                 </p>
               </div>
@@ -1352,24 +1357,26 @@ function CheckoutPageContent() {
               {isOtpStage ? (
                 <>
                   {otpStep === 1 ? (
-                    <input
-                      type="tel"
+                    <SaudiPhoneInput
                       value={phoneInput}
-                      onChange={(e) => {
-                        setPhoneInput(e.target.value)
-                        setPhoneVerified(false)
-                        setVerifiedPhoneE164('')
-                        setVerifiedPhoneLocal('')
-                        setOtpVerificationId('')
-                        setPendingOtpPhoneE164('')
-                        setOtpCode('')
-                        setOtpStatus('')
-                        setOtpError('')
-                        setGatewayNotice('')
-                        setResendSecondsLeft(0)
+                      hint="اكتب 9 أرقام تبدأ بـ 5 بدون صفر البداية"
+                      onChange={(digits) => {
+                        const nextLocal = digits ? `0${digits}` : ''
+                        const changed = nextLocal !== verifiedPhoneLocal
+                        setPhoneInput(nextLocal)
+                        if (changed) {
+                          setPhoneVerified(false)
+                          setVerifiedPhoneE164('')
+                          setVerifiedPhoneLocal('')
+                          setOtpVerificationId('')
+                          setPendingOtpPhoneE164('')
+                          setOtpCode('')
+                          setOtpStatus('')
+                          setOtpError('')
+                          setGatewayNotice('')
+                          setResendSecondsLeft(0)
+                        }
                       }}
-                      placeholder="05xxxxxxxx"
-                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                     />
                   ) : (
                     <>
@@ -1487,7 +1494,7 @@ function CheckoutPageContent() {
                   : otpStep === 1
                   ? otpSending
                     ? 'جارٍ إرسال الرمز...'
-                    : 'إرسال رمز التحقق'
+                    : 'إرسال رمز التحقق بالرسالة النصية'
                   : otpVerifying || paying
                   ? 'جارٍ المعالجة...'
                   : 'تأكيد رقم الجوال'}

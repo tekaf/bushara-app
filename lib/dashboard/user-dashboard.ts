@@ -9,6 +9,12 @@ export type DashboardInviteRow = {
   designId?: string
   date?: string
   time?: string
+  locationName?: string
+  packageGuests?: string | number
+  packageId?: string
+  orderCode?: string
+  orderNumber?: string
+  guestLimit?: number
   selectedOccasion?: string
   occasionType?: string
   status?: string
@@ -142,14 +148,50 @@ export function getWorkflowBadgeTone(status: string): {
   }
 }
 
+const APPROVED_OR_LATER = new Set<string>([
+  INVITE_WORKFLOW_STATUS.APPROVED,
+  INVITE_WORKFLOW_STATUS.READY_FOR_SCHEDULING,
+  INVITE_WORKFLOW_STATUS.SCHEDULED,
+  INVITE_WORKFLOW_STATUS.SENDING,
+  INVITE_WORKFLOW_STATUS.PARTIALLY_SENT,
+  INVITE_WORKFLOW_STATUS.SENT,
+])
+
+export function isApprovedInvite(invite: DashboardInviteRow): boolean {
+  const workflow = String(invite?.workflowStatus || '').trim()
+  if (!workflow) {
+    return isPaidInvite(invite) && !isDraftInvite(invite)
+  }
+  return APPROVED_OR_LATER.has(workflow)
+}
+
+/** Hero shows paid real invites; prefers admin-approved, then any paid in progress. */
 export function pickFocusInvite(invites: DashboardInviteRow[]): DashboardInviteRow | null {
-  if (!invites.length) return null
-  const sorted = [...invites].sort((a, b) => toMillis(b.updatedAt || b.createdAt) - toMillis(a.updatedAt || a.createdAt))
-  const paidActive = sorted.find((row) => isPaidInvite(row) && !isDraftInvite(row))
-  if (paidActive) return paidActive
-  const anyPaid = sorted.find((row) => isPaidInvite(row))
-  if (anyPaid) return anyPaid
-  return sorted[0]
+  const realInvites = invites.filter((row) => !isDraftInvite(row))
+  if (!realInvites.length) return null
+
+  const sorted = [...realInvites].sort(
+    (a, b) => toMillis(b.updatedAt || b.createdAt) - toMillis(a.updatedAt || a.createdAt)
+  )
+
+  const paidApproved = sorted.find((row) => isPaidInvite(row) && isApprovedInvite(row))
+  if (paidApproved) return paidApproved
+
+  const paidInProgress = sorted.find((row) => isPaidInvite(row))
+  if (paidInProgress) return paidInProgress
+
+  return null
+}
+
+export function getPackageLimit(invite: DashboardInviteRow): number {
+  const numeric = Number(invite?.guestLimit || invite?.packageGuests || 0)
+  if (Number.isFinite(numeric) && numeric > 0) return numeric
+  const packageId = String(invite?.packageId || '')
+  if (packageId === '50') return 50
+  if (packageId === '75') return 75
+  if (packageId === '100') return 100
+  if (packageId === '150') return 150
+  return 0
 }
 
 export function formatInviteDate(date?: string, time?: string): string {

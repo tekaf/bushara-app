@@ -6,6 +6,8 @@ import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase/config'
 import { useAuth } from '@/lib/auth/context'
 import { canProceedAfterWorkshop } from '@/lib/invitations/workflow'
+import InviteCatalogCard from '@/components/dashboard/InviteCatalogCard'
+import type { DashboardInviteRow } from '@/lib/dashboard/user-dashboard'
 
 function pickText(...values: unknown[]) {
   for (const value of values) {
@@ -273,15 +275,10 @@ export default function DashboardGuestsPage() {
             <p className="text-sm font-medium text-muted">لا توجد نتائج مطابقة للبحث أو الفلتر الحالي.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
             {filteredInvites.map((invite) => {
-              const status = String(invite?.workflowStatus || invite?.status || '-')
               const isDraft = isDraftOnlyInvite(invite)
               const canManageGuests = canProceedAfterWorkshop(invite?.workflowStatus || invite?.status)
-              const { groomName, brideName } = resolveCoupleNames(invite)
-              const displayTitle = resolveInviteDisplayTitle(invite, groomName, brideName)
-              const orderCode = pickText(invite?.orderCode, invite?.orderNumber, invite?.id)
-              const createdAtLabel = formatInviteCreatedAt(invite)
               const resolvedRealInvite = isDraft
                 ? invites
                     .filter((row) => !isDraftInviteId(String(row?.id || '')))
@@ -293,44 +290,55 @@ export default function DashboardGuestsPage() {
                       return bDate.getTime() - aDate.getTime()
                     })[0] || null
                 : null
+
+              const href = isDraft && resolvedRealInvite
+                ? `/guests?invId=${encodeURIComponent(resolvedRealInvite.id)}`
+                : isDraft
+                ? invite?.designId
+                  ? `/templates/${encodeURIComponent(invite.designId)}`
+                  : '/templates'
+                : canManageGuests
+                ? `/guests?invId=${encodeURIComponent(invite.id)}`
+                : `/dashboard/invites/${encodeURIComponent(invite.id)}/workshop-status`
+
+              const actionLabel = isDraft && resolvedRealInvite
+                ? 'إدارة المدعوين'
+                : isDraft
+                ? 'أكمل التصميم'
+                : canManageGuests
+                ? 'إدارة المدعوين'
+                : 'متابعة الحالة'
+
+              const row = {
+                id: invite.id,
+                source: 'invite',
+                title: resolveInviteDisplayTitle(
+                  invite,
+                  resolveCoupleNames(invite).groomName,
+                  resolveCoupleNames(invite).brideName
+                ),
+                groomName: resolveCoupleNames(invite).groomName,
+                brideName: resolveCoupleNames(invite).brideName,
+                orderCode: pickText(invite?.orderCode, invite?.orderNumber),
+                orderNumber: pickText(invite?.orderNumber, invite?.orderCode),
+                paymentStatus: invite?.paymentStatus,
+                workflowStatus: invite?.workflowStatus,
+                status: invite?.status,
+                paid: invite?.paid,
+                inviteLockedAfterPayment: invite?.inviteLockedAfterPayment,
+                previewUrl: invite?.previewUrl,
+                finalUrl: invite?.finalUrl,
+                inviteImageUrl: invite?.inviteImageUrl,
+                adminPreviewUrl: invite?.adminPreviewUrl,
+              } as DashboardInviteRow
+
               return (
-                <div key={invite.id} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                  <h2 className="mb-2 font-bold text-textDark">{displayTitle}</h2>
-                  <p className="text-sm font-medium text-muted">الحالة: {status}</p>
-                  <p className="text-sm font-medium text-muted">كود الطلب: {orderCode}</p>
-                  <p className="text-sm font-medium text-muted">تاريخ إنشاء الطلب: {createdAtLabel}</p>
-                  <p className="text-sm font-medium text-muted">العريس: {groomName}</p>
-                  <p className="text-sm font-medium text-muted">العروس: {brideName}</p>
-                  {isDraft && resolvedRealInvite ? (
-                    <Link
-                      href={`/guests?invId=${encodeURIComponent(resolvedRealInvite.id)}`}
-                      className="mt-4 inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-accent"
-                    >
-                      فتح الدعوة المعتمدة وإدارة المدعوين
-                    </Link>
-                  ) : isDraft ? (
-                    <Link
-                      href={invite?.designId ? `/templates/${encodeURIComponent(invite.designId)}` : '/templates'}
-                      className="mt-4 inline-flex rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
-                    >
-                      هذه نسخة draft - أكمل التصميم أولاً
-                    </Link>
-                  ) : canManageGuests ? (
-                    <Link
-                      href={`/guests?invId=${encodeURIComponent(invite.id)}`}
-                      className="mt-4 inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-accent"
-                    >
-                      إدارة المدعوين
-                    </Link>
-                  ) : (
-                    <Link
-                      href={`/dashboard/invites/${encodeURIComponent(invite.id)}/workshop-status`}
-                      className="mt-4 inline-flex rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
-                    >
-                      متابعة حالة الطلب
-                    </Link>
-                  )}
-                </div>
+                <InviteCatalogCard
+                  key={invite.id}
+                  invite={row}
+                  href={href}
+                  actionLabel={actionLabel}
+                />
               )
             })}
           </div>
